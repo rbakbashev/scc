@@ -1,4 +1,6 @@
+mod utils;
+
 fn main()
 {
-	println!("Hello, world!");
+	utils::set_internal_panic_hook();
 }
