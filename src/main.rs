@@ -1,4 +1,9 @@
-#![allow(clippy::match_same_arms, clippy::missing_const_for_fn, clippy::option_if_let_else)]
+#![allow(
+	clippy::match_same_arms,
+	clippy::missing_const_for_fn,
+	clippy::needless_late_init,
+	clippy::option_if_let_else
+)]
 
 mod args;
 mod lexer;
@@ -11,7 +16,7 @@ fn main()
 
 	let args = args::parse();
 	let file = utils::read_file(&args.input_files[0]);
-	let tokens = lexer::tokenize(&file);
+	let tokens = lexer::tokenize(&args.input_files[0], &file);
 
 	println!("tokens={tokens:?}");
 
