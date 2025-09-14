@@ -1,0 +1,9 @@
+hard_tabs = true
+style_edition = "2024"
+tab_spaces = 8
+use_small_heuristics = "Max"
+
+brace_style = "AlwaysNextLine"
+control_brace_style = "ClosingNextLine"
+group_imports = "StdExternalCrate"
+match_arm_blocks = false
