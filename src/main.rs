@@ -9,6 +9,9 @@ fn main()
 	utils::set_internal_panic_hook();
 
 	let args = args::parse();
+	let file = utils::read_file(&args.input_files[0]);
 
-	println!("input_files={:?}, output_file={}", args.input_files, args.output_file);
+	println!("{file}");
+
+	let _ = args.output_file;
 }

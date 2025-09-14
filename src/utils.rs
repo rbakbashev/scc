@@ -4,6 +4,11 @@ use std::panic::PanicHookInfo;
 pub trait CheckError<T>: Sized
 {
 	fn or_err(self, msg: impl Display) -> T;
+
+	fn try_to(self, action: impl Display) -> T
+	{
+		self.or_err(format!("failed to {action}"))
+	}
 }
 
 impl<T> CheckError<T> for Option<T>
@@ -127,4 +132,9 @@ pub fn format_list(items: &[impl Display]) -> String
 	}
 
 	out
+}
+
+pub fn read_file(path: &str) -> String
+{
+	std::fs::read_to_string(path).try_to(format!("read file '{path}'"))
 }
