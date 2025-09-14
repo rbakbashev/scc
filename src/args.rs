@@ -38,7 +38,8 @@ pub fn parse() -> ParsedArgs
 fn into_parsed_args(args: &Args) -> ParsedArgs
 {
 	let input_files = if args.free.is_empty() {
-		error("no input filename(s) given");
+		vec!["examples/add.c".to_owned()]
+		// error("no input filename(s) given");
 	}
 	else {
 		args.free.clone()
