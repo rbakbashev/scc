@@ -6,7 +6,6 @@ use crate::utils::error;
 #[derive(Debug)]
 pub enum Token
 {
-	Keyword(String),
 	Identifier(String),
 	Punctuator(String),
 	Integer(i32),
@@ -59,16 +58,6 @@ fn is_identifier_continue(ch: char) -> bool
 }
 
 #[rustfmt::skip]
-fn is_keyword(s: &str) -> bool
-{
-	matches!(s, "bool" | "break" | "case" | "char" | "const" | "continue" | "default" | "do"
-		| "double" | "else" | "enum" | "extern" | "false" | "float" | "for" | "goto" | "if"
-		| "inline" | "int" | "long" | "nullptr" | "restrict" | "return" | "short" | "signed"
-		| "sizeof" | "static" | "struct" | "switch" | "true" | "typedef" | "union"
-		| "unsigned" | "void" | "volatile" | "while")
-}
-
-#[rustfmt::skip]
 fn is_punctuation(ch: char) -> bool
 {
 	matches!(ch, '!' | '%' | '&' | '(' | ')' | '*' | '+' | ',' | '-' | '.' | '/' | ':' | ';'
@@ -102,12 +91,7 @@ fn eat_identifier(start: char, iter: &mut Peekable<Chars>) -> Option<Token>
 		iter.next();
 	}
 
-	if is_keyword(&value) {
-		Some(Token::Keyword(value))
-	}
-	else {
-		Some(Token::Identifier(value))
-	}
+	Some(Token::Identifier(value))
 }
 
 fn eat_punctuator(start: char, iter: &mut Peekable<Chars>) -> Option<Token>

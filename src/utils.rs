@@ -136,5 +136,5 @@ pub fn format_list(items: &[impl Display]) -> String
 
 pub fn read_file(path: &str) -> String
 {
-	std::fs::read_to_string(path).try_to(format!("read file '{path}'"))
+	std::fs::read_to_string(path).try_to(format!("read file {path:?}"))
 }
