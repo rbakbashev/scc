@@ -2,7 +2,8 @@
 	clippy::match_same_arms,
 	clippy::missing_const_for_fn,
 	clippy::needless_late_init,
-	clippy::option_if_let_else
+	clippy::option_if_let_else,
+	clippy::unnecessary_wraps
 )]
 
 mod args;

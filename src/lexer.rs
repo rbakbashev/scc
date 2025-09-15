@@ -143,7 +143,7 @@ fn eat_identifier<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Tok
 		reader_consume(read);
 	}
 
-	Some(token_identifier(read.input, start, read.pos - 1))
+	token(TokenType::Identifier(&read.input[start..read.pos]), start, read.pos - 1)
 }
 
 fn eat_punctuator<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Token<'file>>
@@ -170,7 +170,7 @@ fn eat_punctuator<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Tok
 		reader_consume(read);
 	}
 
-	Some(token_punctuator(read.input, start, current_end))
+	token(TokenType::Punctuator(&read.input[start..=current_end]), start, current_end)
 }
 
 fn eat_integer<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Token<'file>>
@@ -197,37 +197,13 @@ fn eat_integer<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Token<
 		reader_consume(read);
 	}
 
-	Some(token_integer(value, start, read.pos - 1))
+	token(TokenType::Integer(value), start, read.pos - 1)
 }
 
-fn token_identifier(input: &str, start: usize, end: usize) -> Token<'_>
-{
-	let ty = TokenType::Identifier(&input[start..=end]);
-	let (start, end) = convert_indices(start, end);
-
-	Token { ty, start, end }
-}
-
-fn token_punctuator(input: &str, start: usize, end: usize) -> Token<'_>
-{
-	let ty = TokenType::Punctuator(&input[start..=end]);
-	let (start, end) = convert_indices(start, end);
-
-	Token { ty, start, end }
-}
-
-fn token_integer<'file>(value: i32, start: usize, end: usize) -> Token<'file>
-{
-	let ty = TokenType::Integer(value);
-	let (start, end) = convert_indices(start, end);
-
-	Token { ty, start, end }
-}
-
-fn convert_indices(start: usize, end: usize) -> (u32, u32)
+fn token(ty: TokenType, start: usize, end: usize) -> Option<Token>
 {
 	let start = start.try_into().or_err("start overflows u32");
 	let end = end.try_into().or_err("end overflows u32");
 
-	(start, end)
+	Some(Token { ty, start, end })
 }
