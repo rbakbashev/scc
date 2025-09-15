@@ -2,10 +2,18 @@ use std::fmt::Display;
 use std::iter::Peekable;
 use std::str::Chars;
 
-use crate::utils::error;
+use crate::utils::{CheckError, error};
 
 #[derive(Debug)]
-pub enum Token<'file>
+pub struct Token<'file>
+{
+	pub ty: TokenType<'file>,
+	pub start: u32,
+	pub end: u32,
+}
+
+#[derive(Debug)]
+pub enum TokenType<'file>
 {
 	Identifier(&'file str),
 	Punctuator(&'file str),
@@ -120,7 +128,6 @@ fn is_compound_punctuator(s: &str) -> bool
 fn eat_identifier<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Token<'file>>
 {
 	let start = read.pos;
-	let value;
 
 	if !is_identifier_start(curr) {
 		return None;
@@ -136,16 +143,14 @@ fn eat_identifier<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Tok
 		reader_consume(read);
 	}
 
-	value = &read.input[start..read.pos];
-
-	Some(Token::Identifier(value))
+	Some(token_identifier(read.input, start, read.pos - 1))
 }
 
 fn eat_punctuator<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Token<'file>>
 {
 	let start = read.pos;
-	let mut current = &read.input[start..=start];
-	let mut new;
+	let mut current_end = start;
+	let mut new_end;
 
 	if !is_punctuation(curr) {
 		return None;
@@ -154,29 +159,30 @@ fn eat_punctuator<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Tok
 	reader_consume(read);
 
 	while reader_curr(read).is_some() {
-		new = &read.input[start..=read.pos];
+		new_end = read.pos;
 
-		if !is_compound_punctuator(new) {
+		if !is_compound_punctuator(&read.input[start..=new_end]) {
 			break;
 		}
 
-		current = new;
+		current_end = new_end;
 
 		reader_consume(read);
 	}
 
-	Some(Token::Punctuator(current))
+	Some(token_punctuator(read.input, start, current_end))
 }
 
 fn eat_integer<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Token<'file>>
 {
+	let start = read.pos;
 	let mut value;
 
 	if !curr.is_ascii_digit() {
 		return None;
 	}
 
-	value = curr as u8 - b'0';
+	value = i32::from(curr as u8 - b'0');
 
 	reader_consume(read);
 
@@ -186,10 +192,42 @@ fn eat_integer<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Token<
 		}
 
 		value *= 10;
-		value += curr as u8 - b'0';
+		value += i32::from(curr as u8 - b'0');
 
 		reader_consume(read);
 	}
 
-	Some(Token::Integer(value.into()))
+	Some(token_integer(value, start, read.pos - 1))
+}
+
+fn token_identifier(input: &str, start: usize, end: usize) -> Token<'_>
+{
+	let ty = TokenType::Identifier(&input[start..=end]);
+	let (start, end) = convert_indices(start, end);
+
+	Token { ty, start, end }
+}
+
+fn token_punctuator(input: &str, start: usize, end: usize) -> Token<'_>
+{
+	let ty = TokenType::Punctuator(&input[start..=end]);
+	let (start, end) = convert_indices(start, end);
+
+	Token { ty, start, end }
+}
+
+fn token_integer<'file>(value: i32, start: usize, end: usize) -> Token<'file>
+{
+	let ty = TokenType::Integer(value);
+	let (start, end) = convert_indices(start, end);
+
+	Token { ty, start, end }
+}
+
+fn convert_indices(start: usize, end: usize) -> (u32, u32)
+{
+	let start = start.try_into().or_err("start overflows u32");
+	let end = end.try_into().or_err("end overflows u32");
+
+	(start, end)
 }
