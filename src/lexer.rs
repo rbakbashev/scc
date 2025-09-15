@@ -4,20 +4,19 @@ use std::str::Chars;
 
 use crate::utils::{CheckError, error};
 
-#[derive(Debug)]
-pub struct Token<'file>
+pub struct Token
 {
-	pub ty: TokenType<'file>,
+	pub ty: TokenType,
 	pub start: u32,
 	pub end: u32,
 }
 
 #[derive(Debug)]
-pub enum TokenType<'file>
+pub enum TokenType
 {
-	Identifier(&'file str),
-	Punctuator(&'file str),
-	Integer(i32),
+	Identifier,
+	Punctuator,
+	Integer,
 }
 
 struct FileReader<'file>
@@ -30,7 +29,7 @@ struct FileReader<'file>
 	column: u32,
 }
 
-pub fn tokenize<'file>(filename: &'file str, input: &'file str) -> Vec<Token<'file>>
+pub fn tokenize(filename: &str, input: &str) -> Vec<Token>
 {
 	let mut read = reader(filename, input);
 	let mut out = Vec::new();
@@ -60,6 +59,16 @@ pub fn tokenize<'file>(filename: &'file str, input: &'file str) -> Vec<Token<'fi
 	}
 
 	out
+}
+
+#[allow(unused)]
+pub fn print_token_list(tokens: &[Token], input: &str)
+{
+	for token in tokens {
+		let range = (token.start as usize)..=(token.end as usize);
+
+		println!("{:?} {:?}", token.ty, &input[range]);
+	}
 }
 
 fn reader<'file>(filename: &'file str, input: &'file str) -> FileReader<'file>
@@ -125,7 +134,7 @@ fn is_compound_punctuator(s: &str) -> bool
 		| "||")
 }
 
-fn eat_identifier<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Token<'file>>
+fn eat_identifier(curr: char, read: &mut FileReader) -> Option<Token>
 {
 	let start = read.pos;
 
@@ -143,10 +152,10 @@ fn eat_identifier<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Tok
 		reader_consume(read);
 	}
 
-	token(TokenType::Identifier(&read.input[start..read.pos]), start, read.pos - 1)
+	token(TokenType::Identifier, start, read.pos - 1)
 }
 
-fn eat_punctuator<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Token<'file>>
+fn eat_punctuator(curr: char, read: &mut FileReader) -> Option<Token>
 {
 	let start = read.pos;
 	let mut current_end = start;
@@ -170,19 +179,16 @@ fn eat_punctuator<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Tok
 		reader_consume(read);
 	}
 
-	token(TokenType::Punctuator(&read.input[start..=current_end]), start, current_end)
+	token(TokenType::Punctuator, start, current_end)
 }
 
-fn eat_integer<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Token<'file>>
+fn eat_integer(curr: char, read: &mut FileReader) -> Option<Token>
 {
 	let start = read.pos;
-	let mut value;
 
 	if !curr.is_ascii_digit() {
 		return None;
 	}
-
-	value = i32::from(curr as u8 - b'0');
 
 	reader_consume(read);
 
@@ -191,13 +197,10 @@ fn eat_integer<'file>(curr: char, read: &mut FileReader<'file>) -> Option<Token<
 			break;
 		}
 
-		value *= 10;
-		value += i32::from(curr as u8 - b'0');
-
 		reader_consume(read);
 	}
 
-	token(TokenType::Integer(value), start, read.pos - 1)
+	token(TokenType::Integer, start, read.pos - 1)
 }
 
 fn token(ty: TokenType, start: usize, end: usize) -> Option<Token>

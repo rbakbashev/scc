@@ -19,7 +19,7 @@ fn main()
 	let file = utils::read_file(&args.input_files[0]);
 	let tokens = lexer::tokenize(&args.input_files[0], &file);
 
-	println!("tokens={tokens:?}");
+	lexer::print_token_list(&tokens, &file);
 
 	let _ = args.output_file;
 }
