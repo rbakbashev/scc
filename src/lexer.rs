@@ -17,6 +17,7 @@ pub enum TokenType
 	Identifier,
 	Punctuator,
 	Integer,
+	EOF,
 }
 
 struct FileReader<'file>
@@ -33,6 +34,10 @@ pub fn tokenize(filename: &str, input: &str) -> Vec<Token>
 {
 	let mut read = reader(filename, input);
 	let mut out = Vec::new();
+
+	if input.is_empty() {
+		error(format!("file {filename:?} is empty"));
+	}
 
 	while let Some(ch) = reader_curr(&mut read) {
 		if is_whitespace(ch) {
@@ -57,6 +62,8 @@ pub fn tokenize(filename: &str, input: &str) -> Vec<Token>
 
 		lex_error(&read, format!("unhandled character: {ch:?}"));
 	}
+
+	out.push(eof_token(input));
 
 	out
 }
@@ -209,4 +216,11 @@ fn token(ty: TokenType, start: usize, end: usize) -> Option<Token>
 	let end = end.try_into().or_err("end overflows u32");
 
 	Some(Token { ty, start, end })
+}
+
+fn eof_token(input: &str) -> Token
+{
+	let last = (input.len() - 1).try_into().or_err("len overflows u32");
+
+	Token { ty: TokenType::EOF, start: last, end: last }
 }
