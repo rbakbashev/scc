@@ -55,7 +55,7 @@ pub fn tokenize(filename: &str, input: &str) -> Vec<Token>
 			continue;
 		}
 
-		reader_error(&read, format!("unhandled character: {ch:?}"));
+		lex_error(&read, format!("unhandled character: {ch:?}"));
 	}
 
 	out
@@ -99,7 +99,7 @@ fn reader_consume(read: &mut FileReader)
 	}
 }
 
-fn reader_error(read: &FileReader, msg: impl Display) -> !
+fn lex_error(read: &FileReader, msg: impl Display) -> !
 {
 	error(format!("{msg} at {}:{}:{}", read.filename, read.line, read.column));
 }

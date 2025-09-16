@@ -1,4 +1,4 @@
-use std::fmt::{Display, Write};
+use std::fmt::Display;
 use std::panic::PanicHookInfo;
 
 pub trait CheckError<T>: Sized
@@ -110,6 +110,8 @@ pub fn intersperse<I: Iterator<Item = String>>(iter: I, separator: &str) -> Stri
 
 pub fn format_list(items: &[impl Display]) -> String
 {
+	let mut out = String::new();
+
 	if items.is_empty() {
 		return "\"\"".to_string();
 	}
@@ -117,8 +119,6 @@ pub fn format_list(items: &[impl Display]) -> String
 	if items.len() == 1 {
 		return format!("\"{}\"", items[0]);
 	}
-
-	let mut out = String::new();
 
 	for (i, item) in items.iter().enumerate() {
 		if i == items.len() - 1 {
@@ -128,7 +128,7 @@ pub fn format_list(items: &[impl Display]) -> String
 			out += ", ";
 		}
 
-		let _ = write!(&mut out, "\"{item}\"");
+		out += &format!("\"{item}\"");
 	}
 
 	out

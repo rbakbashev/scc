@@ -1,4 +1,5 @@
 #![allow(
+	clippy::format_push_string,
 	clippy::match_same_arms,
 	clippy::missing_const_for_fn,
 	clippy::needless_late_init,
@@ -9,6 +10,7 @@
 mod args;
 mod lexer;
 mod optparse;
+mod parser;
 mod utils;
 
 fn main()
@@ -18,8 +20,7 @@ fn main()
 	let args = args::parse();
 	let file = utils::read_file(&args.input_files[0]);
 	let tokens = lexer::tokenize(&args.input_files[0], &file);
-
-	lexer::print_token_list(&tokens, &file);
+	let ast = parser::parse(&args.input_files[0], &file, &tokens);
 
 	let _ = args.output_file;
 }
