@@ -11,7 +11,7 @@ pub struct Token
 	pub end: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokenType
 {
 	Identifier,
@@ -72,10 +72,17 @@ pub fn tokenize(filename: &str, input: &str) -> Vec<Token>
 pub fn print_token_list(tokens: &[Token], input: &str)
 {
 	for token in tokens {
-		let range = (token.start as usize)..=(token.end as usize);
+		let text = token_text(token, input);
 
-		println!("{:?} {:?}", token.ty, &input[range]);
+		println!("{:?} {text:?}", token.ty);
 	}
+}
+
+pub fn token_text<'file>(token: &Token, input: &'file str) -> &'file str
+{
+	let range = (token.start as usize)..=(token.end as usize);
+
+	&input[range]
 }
 
 fn reader<'file>(filename: &'file str, input: &'file str) -> FileReader<'file>

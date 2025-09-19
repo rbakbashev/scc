@@ -1,8 +1,33 @@
 use std::fmt::Display;
 
-use crate::lexer::Token;
+use crate::lexer::{Token, TokenType, token_text};
 use crate::utils::error;
 
+pub struct AST
+{
+	ty: Type,
+	next: Vec<AST>,
+	data: Option<String>,
+}
+
+#[derive(Debug)]
+pub enum Type
+{
+	TranslationUnit,
+	ExternalDeclaration,
+	FunctionDefinition,
+	DeclarationSpecifiers,
+	TypeSpecifier,
+	Declarator,
+	FunctionDeclarator,
+	Identifier,
+	ParameterList,
+	ParameterDeclaration,
+}
+
+use Type::*;
+
+#[derive(Clone, Copy)]
 struct TokenReader<'file>
 {
 	filename: &'file str,
@@ -11,15 +36,79 @@ struct TokenReader<'file>
 	idx: usize,
 }
 
-fn reader_curr<'f>(read: &TokenReader<'f>) -> Option<&'f Token>
+fn ast_node(ty: Type) -> AST
 {
-	read.tokens.get(read.idx)
+	AST { ty, next: Vec::new(), data: None }
+}
+
+fn ast_with_data(ty: Type, data: String) -> AST
+{
+	AST { ty, next: Vec::new(), data: Some(data) }
+}
+
+fn reader_curr<'f>(read: &TokenReader<'f>) -> &'f Token
+{
+	&read.tokens[read.idx]
+}
+
+#[allow(unused)]
+fn reader_dbg(read: &TokenReader, func: &str)
+{
+	let (_ty, text) = reader_data(read);
+
+	println!("{func} [{}/{}] {text}", read.idx, read.tokens.len());
+}
+
+fn reader_advance(read: &mut TokenReader)
+{
+	if read.tokens[read.idx].ty == TokenType::EOF {
+		return;
+	}
+
+	read.idx += 1;
+}
+
+fn reader_data<'f>(read: &TokenReader<'f>) -> (TokenType, &'f str)
+{
+	let curr = reader_curr(read);
+	let text = token_text(curr, read.input);
+
+	(curr.ty, text)
+}
+
+fn reader_matches(read: &TokenReader, token_type: TokenType, target: &str) -> bool
+{
+	let (ty, text) = reader_data(read);
+
+	ty == token_type && text == target
+}
+
+fn reader_optional(read: &mut TokenReader, token_type: TokenType, target: &str) -> Option<()>
+{
+	let (ty, text) = reader_data(read);
+
+	if ty == token_type && text == target {
+		reader_advance(read);
+
+		return Some(());
+	}
+
+	None
+}
+
+fn reader_expect(read: &mut TokenReader, token_type: TokenType, target: &str)
+{
+	let (_ty, text) = reader_data(read);
+
+	if reader_optional(read, token_type, target).is_none() {
+		parse_error(read, format!("unexpected token {text:?}, expected {target:?}"));
+	}
 }
 
 fn parse_error(read: &TokenReader, msg: impl Display) -> !
 {
 	let mut message = format!("{msg}");
-	let token = reader_curr(read).unwrap_or_else(|| error(&message));
+	let token = reader_curr(read);
 	let (raw_line, number, start) = get_line_of_token(token, read.input);
 	let (line, added) = expand_tabs(raw_line);
 	let column = token.start as usize - start + 1;
@@ -92,11 +181,206 @@ fn underline(token: &Token, start: usize, added: usize) -> String
 	" ".repeat(spaces) + &"~".repeat(underlines)
 }
 
-pub fn parse(filename: &str, input: &str, tokens: &[Token])
+fn match_keyword(read: &TokenReader, keywords: &[&str]) -> Option<String>
 {
-	let read = TokenReader { filename, input, tokens, idx: 0 };
+	let curr = reader_curr(read);
+	let text;
 
-	if reader_curr(&read).is_some() {
+	if curr.ty != TokenType::Identifier {
+		return None;
+	}
+
+	text = token_text(curr, read.input);
+
+	for &keyword in keywords {
+		if text == keyword {
+			return Some(keyword.to_string());
+		}
+	}
+
+	None
+}
+
+pub fn print_ast(ast: &AST)
+{
+	print_ast_rec(ast, 0);
+}
+
+fn print_ast_rec(ast: &AST, level: usize)
+{
+	let indent = " ".repeat(4 * level);
+	let data = match &ast.data {
+		Some(data) => &format!(" {data:?}"),
+		None => "",
+	};
+
+	println!("{indent}{:?}{data} [", ast.ty);
+
+	for next in &ast.next {
+		print_ast_rec(next, level + 1);
+	}
+
+	println!("{indent}]");
+}
+
+pub fn parse(filename: &str, input: &str, tokens: &[Token]) -> AST
+{
+	let mut read = TokenReader { filename, input, tokens, idx: 0 };
+	let ast;
+
+	ast = translation_unit(&mut read);
+
+	if reader_curr(&read).ty != TokenType::EOF {
 		parse_error(&read, "unexpected token at EOF");
 	}
+
+	ast
+}
+
+fn translation_unit(read: &mut TokenReader) -> AST
+{
+	let mut node = ast_node(TranslationUnit);
+
+	while let Some(next) = external_declaration(read) {
+		node.next.push(next);
+	}
+
+	node
+}
+
+fn external_declaration(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(ExternalDeclaration);
+	let mut copy = *read;
+
+	if let Some(next) = function_definition(&mut copy) {
+		node.next.push(next);
+		*read = copy;
+		return Some(node);
+	}
+
+	None
+}
+
+fn function_definition(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(FunctionDefinition);
+
+	node.next.push(declaration_specifiers(read)?);
+	node.next.push(declarator(read)?);
+	node.next.push(function_body(read)?);
+
+	Some(node)
+}
+
+fn declaration_specifiers(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(DeclarationSpecifiers);
+
+	node.next.push(type_specifier(read)?);
+
+	Some(node)
+}
+
+fn type_specifier(read: &mut TokenReader) -> Option<AST>
+{
+	let keywords =
+		["void", "char", "short", "int", "long", "float", "double", "signed", "unsigned"];
+
+	if let Some(keyword) = match_keyword(read, &keywords) {
+		reader_advance(read);
+
+		return Some(ast_with_data(TypeSpecifier, keyword));
+	}
+
+	None
+}
+
+fn declarator(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(Declarator);
+	let mut copy;
+
+	copy = *read;
+
+	if let Some(next) = function_declarator(&mut copy) {
+		node.next.push(next);
+		*read = copy;
+		return Some(node);
+	}
+
+	copy = *read;
+
+	if let Some(next) = identifier(&mut copy) {
+		node.next.push(next);
+		*read = copy;
+		return Some(node);
+	}
+
+	None
+}
+
+fn function_declarator(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(FunctionDeclarator);
+
+	node.next.push(identifier(read)?);
+
+	reader_optional(read, TokenType::Punctuator, "(")?;
+
+	node.next.push(parameter_list(read));
+
+	reader_expect(read, TokenType::Punctuator, ")");
+
+	Some(node)
+}
+
+fn identifier(read: &mut TokenReader) -> Option<AST>
+{
+	let (ty, text) = reader_data(read);
+
+	if ty == TokenType::Identifier {
+		reader_advance(read);
+
+		return Some(ast_with_data(Identifier, text.to_string()));
+	}
+
+	None
+}
+
+fn parameter_list(read: &mut TokenReader) -> AST
+{
+	let mut node = ast_node(ParameterList);
+
+	while let Some(next) = parameter_declaration(read) {
+		node.next.push(next);
+
+		if reader_matches(read, TokenType::Punctuator, ",") {
+			reader_advance(read);
+			continue;
+		}
+
+		break;
+	}
+
+	node
+}
+
+fn parameter_declaration(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(ParameterDeclaration);
+
+	node.next.push(declaration_specifiers(read)?);
+
+	if let Some(next) = declarator(read) {
+		node.next.push(next);
+		return Some(node);
+	}
+
+	Some(node)
+}
+
+fn function_body(_read: &mut TokenReader) -> Option<AST>
+{
+	todo!()
 }
