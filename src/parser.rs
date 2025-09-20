@@ -14,16 +14,16 @@ pub struct AST
 #[derive(Clone, Copy, Debug)]
 pub enum Type
 {
-	TranslationUnit,
-	ExternalDeclaration,
-	FunctionDefinition,
 	DeclarationSpecifiers,
-	TypeSpecifier,
 	Declarator,
+	ExternalDeclaration,
 	FunctionDeclarator,
+	FunctionDefinition,
 	Identifier,
-	ParameterList,
 	ParameterDeclaration,
+	ParameterList,
+	TranslationUnit,
+	TypeSpecifier,
 }
 
 use Type::*;
