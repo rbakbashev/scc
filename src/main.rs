@@ -1,4 +1,5 @@
 #![allow(
+	clippy::derive_partial_eq_without_eq,
 	clippy::enum_glob_use,
 	clippy::enum_variant_names,
 	clippy::format_push_string,
@@ -11,6 +12,7 @@
 )]
 
 mod args;
+mod ir;
 mod lexer;
 mod optparse;
 mod parser;
@@ -27,8 +29,9 @@ fn main()
 	let file = utils::read_file(filename);
 	let tokens = lexer::tokenize(filename, &file);
 	let ast = parser::parse(filename, &file, &tokens);
+	let ir = ir::lower(&ast);
 
-	parser::print_ast(&ast);
+	ir::print(&ir);
 
 	let _ = ARGS.output_file;
 }

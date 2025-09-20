@@ -6,12 +6,12 @@ use crate::utils::error;
 
 pub struct AST
 {
-	ty: Type,
-	next: Vec<AST>,
-	data: Option<String>,
+	pub ty: Type,
+	pub next: Vec<AST>,
+	pub data: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Type
 {
 	AdditiveExpression,
@@ -90,7 +90,7 @@ fn reader_dbg(read: &TokenReader, ast_type: Type)
 		return;
 	}
 
-	println!("{ast_type:?} [{idx}/{len}] {text}");
+	println!("{ast_type:?} [{idx}/{len}] {text:?}");
 }
 
 fn reader_advance(read: &mut TokenReader)
@@ -295,6 +295,11 @@ pub fn parse(filename: &str, input: &str, tokens: &[Token]) -> AST
 
 	if reader_curr(&read).ty != TokenType::EOF {
 		parse_error(&read, "unexpected token at EOF");
+	}
+
+	if ARGS.verbose {
+		println!();
+		print_ast(&ast);
 	}
 
 	ast

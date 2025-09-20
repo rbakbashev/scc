@@ -12,7 +12,7 @@ pub struct Token
 	pub end: u32,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum TokenType
 {
 	Keyword,
@@ -69,6 +69,7 @@ pub fn tokenize(filename: &str, input: &str) -> Vec<Token>
 
 	if ARGS.verbose {
 		print_token_list(&out, input);
+		println!();
 	}
 
 	out
