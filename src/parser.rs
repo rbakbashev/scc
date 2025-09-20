@@ -116,11 +116,9 @@ fn reader_data<'f>(read: &TokenReader<'f>) -> (TokenType, &'f str)
 	(curr.ty, text)
 }
 
-fn reader_matches(read: &TokenReader, token_type: TokenType, target: &str) -> bool
+fn reader_matches(read: &mut TokenReader, token_type: TokenType, target: &str) -> bool
 {
-	let (ty, text) = reader_data(read);
-
-	ty == token_type && text == target
+	reader_optional(read, token_type, target).is_some()
 }
 
 fn reader_optional(read: &mut TokenReader, token_type: TokenType, target: &str) -> Option<()>
@@ -159,7 +157,7 @@ fn reader_expect(read: &mut TokenReader, token_type: TokenType, target: &str)
 {
 	let (_ty, text) = reader_data(read);
 
-	if reader_optional(read, token_type, target).is_none() {
+	if !reader_matches(read, token_type, target) {
 		parse_error(read, format!("unexpected token {text:?}, expected {target:?}"));
 	}
 }
@@ -428,7 +426,6 @@ fn parameter_list(read: &mut TokenReader) -> AST
 		node.next.push(next);
 
 		if reader_matches(read, TokenType::Punctuator, ",") {
-			reader_advance(read);
 			continue;
 		}
 
@@ -511,7 +508,7 @@ fn expression_statement(read: &mut TokenReader) -> Option<AST>
 {
 	let mut node = ast_node(read, ExpressionStatement);
 
-	if reader_optional(read, TokenType::Punctuator, ";").is_some() {
+	if reader_matches(read, TokenType::Punctuator, ";") {
 		return Some(node);
 	}
 
@@ -532,7 +529,7 @@ fn expression(read: &mut TokenReader) -> Option<AST>
 
 	node.next.push(assignment_expression(read)?);
 
-	while reader_optional(read, TokenType::Punctuator, ",").is_some() {
+	while reader_matches(read, TokenType::Punctuator, ",") {
 		node.next.push(assignment_expression(read)?);
 	}
 
@@ -679,7 +676,7 @@ fn postfix_expression(read: &mut TokenReader) -> Option<AST>
 
 	node.next.push(primary_expression(read)?);
 
-	if reader_optional(read, TokenType::Punctuator, "(").is_some() {
+	if reader_matches(read, TokenType::Punctuator, "(") {
 		node.data = Some("(".to_string());
 
 		if let Some(next) = argument_expression_list(read) {
@@ -698,7 +695,7 @@ fn argument_expression_list(read: &mut TokenReader) -> Option<AST>
 
 	node.next.push(assignment_expression(read)?);
 
-	while reader_optional(read, TokenType::Punctuator, ",").is_some() {
+	while reader_matches(read, TokenType::Punctuator, ",") {
 		node.next.push(assignment_expression(read)?);
 	}
 
