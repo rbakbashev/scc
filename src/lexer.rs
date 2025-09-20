@@ -15,6 +15,7 @@ pub struct Token
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokenType
 {
+	Keyword,
 	Identifier,
 	Punctuator,
 	Integer,
@@ -138,6 +139,16 @@ fn is_identifier_continue(ch: char) -> bool
 }
 
 #[rustfmt::skip]
+fn is_keyword(s: &str) -> bool
+{
+	matches!(s, "bool" | "break" | "case" | "char" | "const" | "continue" | "default" | "do"
+		| "double" | "else" | "enum" | "extern" | "false" | "float" | "for" | "goto" | "if"
+		| "inline" | "int" | "long" | "nullptr" | "restrict" | "return" | "short" | "signed"
+		| "sizeof" | "static" | "struct" | "switch" | "true" | "typedef" | "union"
+		| "unsigned" | "void" | "volatile" | "while")
+}
+
+#[rustfmt::skip]
 fn is_punctuation(ch: char) -> bool
 {
 	matches!(ch, '!' | '%' | '&' | '(' | ')' | '*' | '+' | ',' | '-' | '.' | '/' | ':' | ';'
@@ -155,6 +166,7 @@ fn is_compound_punctuator(s: &str) -> bool
 fn eat_identifier(curr: char, read: &mut FileReader) -> Option<Token>
 {
 	let start = read.pos;
+	let ty;
 
 	if !is_identifier_start(curr) {
 		return None;
@@ -170,7 +182,14 @@ fn eat_identifier(curr: char, read: &mut FileReader) -> Option<Token>
 		reader_consume(read);
 	}
 
-	token(TokenType::Identifier, start, read.pos - 1)
+	ty = if is_keyword(&read.input[start..read.pos]) {
+		TokenType::Keyword
+	}
+	else {
+		TokenType::Identifier
+	};
+
+	token(ty, start, read.pos - 1)
 }
 
 fn eat_punctuator(curr: char, read: &mut FileReader) -> Option<Token>

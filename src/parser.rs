@@ -202,7 +202,7 @@ fn match_keyword(read: &TokenReader, keywords: &[&str]) -> Option<String>
 	let curr = reader_curr(read);
 	let text;
 
-	if curr.ty != TokenType::Identifier {
+	if curr.ty != TokenType::Keyword {
 		return None;
 	}
 
