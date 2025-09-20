@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::iter::Peekable;
 use std::str::Chars;
 
+use crate::args::ARGS;
 use crate::utils::{CheckError, error};
 
 pub struct Token
@@ -65,10 +66,13 @@ pub fn tokenize(filename: &str, input: &str) -> Vec<Token>
 
 	out.push(eof_token(input));
 
+	if ARGS.verbose {
+		print_token_list(&out, input);
+	}
+
 	out
 }
 
-#[allow(unused)]
 pub fn print_token_list(tokens: &[Token], input: &str)
 {
 	for token in tokens {

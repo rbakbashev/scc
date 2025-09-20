@@ -9,6 +9,7 @@ pub struct ParsedArgs
 {
 	pub input_files: Vec<String>,
 	pub output_file: String,
+	pub verbose: bool,
 }
 
 pub struct WriteOnce<T>
@@ -39,6 +40,7 @@ pub fn parse()
 			desc: "write output to <filename>",
 			hint: "<filename>",
 		},
+		Opt::Flag { short: 'V', long: "verbose", desc: "enable verbose output" },
 	];
 
 	let results = collect_args(&options);
@@ -66,7 +68,9 @@ fn into_parsed_args(args: &Args) -> ParsedArgs
 
 	let output_file = get_output_filename(args, &input_files);
 
-	ParsedArgs { input_files, output_file }
+	let verbose = arg_present(args, 'V');
+
+	ParsedArgs { input_files, output_file, verbose }
 }
 
 fn get_output_filename(args: &Args, input_files: &[String]) -> String
