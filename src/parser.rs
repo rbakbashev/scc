@@ -14,16 +14,40 @@ pub struct AST
 #[derive(Clone, Copy, Debug)]
 pub enum Type
 {
+	AdditiveExpression,
+	AndExpression,
+	ArgumentExpressionList,
+	AssignmentExpression,
+	BlockItem,
+	CastExpression,
+	CompoundStatement,
+	ConditionalExpression,
+	Constant,
 	DeclarationSpecifiers,
 	Declarator,
+	EqualityExpression,
+	ExclusiveOrExpression,
+	Expression,
+	ExpressionStatement,
 	ExternalDeclaration,
 	FunctionDeclarator,
 	FunctionDefinition,
 	Identifier,
+	InclusiveOrExpression,
+	JumpStatement,
+	LogicalAndExpression,
+	LogicalOrExpression,
+	MultiplicativeExpression,
 	ParameterDeclaration,
 	ParameterList,
+	PostfixExpression,
+	PrimaryExpression,
+	RelationalExpression,
+	ShiftExpression,
 	TranslationUnit,
 	TypeSpecifier,
+	UnaryExpression,
+	UnlabeledStatement,
 }
 
 use Type::*;
@@ -107,6 +131,25 @@ fn reader_optional(read: &mut TokenReader, token_type: TokenType, target: &str) 
 		reader_advance(read);
 
 		return Some(());
+	}
+
+	None
+}
+
+fn reader_eat_any(read: &mut TokenReader, token_type: TokenType, items: &[&str]) -> Option<String>
+{
+	let (ty, text) = reader_data(read);
+
+	if ty != token_type {
+		return None;
+	}
+
+	for &item in items {
+		if text == item {
+			reader_advance(read);
+
+			return Some(item.to_string());
+		}
 	}
 
 	None
@@ -224,7 +267,7 @@ pub fn print_ast(ast: &AST)
 
 fn print_ast_rec(ast: &AST, level: usize)
 {
-	let indent = " ".repeat(4 * level);
+	let indent = " ".repeat(2 * level);
 	let data = match &ast.data {
 		Some(data) => &format!(" {data:?}"),
 		None => "",
@@ -284,7 +327,7 @@ fn function_definition(read: &mut TokenReader) -> Option<AST>
 
 	node.next.push(declaration_specifiers(read)?);
 	node.next.push(declarator(read)?);
-	node.next.push(function_body(read)?);
+	node.next.push(compound_statement(read)?);
 
 	Some(node)
 }
@@ -364,6 +407,19 @@ fn identifier(read: &mut TokenReader) -> Option<AST>
 	None
 }
 
+fn constant(read: &mut TokenReader) -> Option<AST>
+{
+	let (ty, text) = reader_data(read);
+
+	if ty == TokenType::Integer {
+		reader_advance(read);
+
+		return Some(ast_with_data(read, Constant, text.to_string()));
+	}
+
+	None
+}
+
 fn parameter_list(read: &mut TokenReader) -> AST
 {
 	let mut node = ast_node(read, ParameterList);
@@ -396,7 +452,287 @@ fn parameter_declaration(read: &mut TokenReader) -> Option<AST>
 	Some(node)
 }
 
-fn function_body(_read: &mut TokenReader) -> Option<AST>
+fn compound_statement(read: &mut TokenReader) -> Option<AST>
 {
-	todo!()
+	let mut node = ast_node(read, CompoundStatement);
+
+	reader_optional(read, TokenType::Punctuator, "{")?;
+
+	while let Some(next) = block_item(read) {
+		node.next.push(next);
+	}
+
+	reader_expect(read, TokenType::Punctuator, "}");
+
+	Some(node)
+}
+
+fn block_item(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, BlockItem);
+	let mut copy;
+
+	copy = *read;
+
+	if let Some(next) = unlabeled_statement(&mut copy) {
+		node.next.push(next);
+		*read = copy;
+		return Some(node);
+	}
+
+	None
+}
+
+fn unlabeled_statement(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, UnlabeledStatement);
+	let mut copy;
+
+	copy = *read;
+
+	if let Some(next) = expression_statement(&mut copy) {
+		node.next.push(next);
+		*read = copy;
+		return Some(node);
+	}
+
+	copy = *read;
+
+	if let Some(next) = jump_statement(&mut copy) {
+		node.next.push(next);
+		*read = copy;
+		return Some(node);
+	}
+
+	None
+}
+
+fn expression_statement(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, ExpressionStatement);
+
+	if reader_optional(read, TokenType::Punctuator, ";").is_some() {
+		return Some(node);
+	}
+
+	if let Some(next) = expression(read) {
+		node.next.push(next);
+
+		reader_expect(read, TokenType::Punctuator, ";");
+
+		return Some(node);
+	}
+
+	None
+}
+
+fn expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, Expression);
+
+	node.next.push(assignment_expression(read)?);
+
+	while reader_optional(read, TokenType::Punctuator, ",").is_some() {
+		node.next.push(assignment_expression(read)?);
+	}
+
+	Some(node)
+}
+
+fn assignment_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, AssignmentExpression);
+
+	if let Some(next) = conditional_expression(read) {
+		node.next.push(next);
+		return Some(node);
+	}
+
+	None
+}
+
+fn conditional_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, ConditionalExpression);
+
+	node.next.push(logical_or_expression(read)?);
+
+	Some(node)
+}
+
+fn logical_or_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, LogicalOrExpression);
+
+	node.next.push(logical_and_expression(read)?);
+
+	Some(node)
+}
+
+fn logical_and_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, LogicalAndExpression);
+
+	node.next.push(inclusive_or_expression(read)?);
+
+	Some(node)
+}
+
+fn inclusive_or_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, InclusiveOrExpression);
+
+	node.next.push(exclusive_or_expression(read)?);
+
+	Some(node)
+}
+
+fn exclusive_or_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, ExclusiveOrExpression);
+
+	node.next.push(and_expression(read)?);
+
+	Some(node)
+}
+
+fn and_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, AndExpression);
+
+	node.next.push(equality_expression(read)?);
+
+	Some(node)
+}
+
+fn equality_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, EqualityExpression);
+
+	node.next.push(relational_expression(read)?);
+
+	Some(node)
+}
+
+fn relational_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, RelationalExpression);
+
+	node.next.push(shift_expression(read)?);
+
+	Some(node)
+}
+
+fn shift_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, ShiftExpression);
+
+	node.next.push(additive_expression(read)?);
+
+	Some(node)
+}
+
+fn additive_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, AdditiveExpression);
+
+	node.next.push(multiplicative_expression(read)?);
+
+	if let Some(data) = reader_eat_any(read, TokenType::Punctuator, &["+", "-"]) {
+		node.data = Some(data);
+		node.next.push(multiplicative_expression(read)?);
+	}
+
+	Some(node)
+}
+
+fn multiplicative_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, MultiplicativeExpression);
+
+	node.next.push(cast_expression(read)?);
+
+	Some(node)
+}
+
+fn cast_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, CastExpression);
+
+	node.next.push(unary_expression(read)?);
+
+	Some(node)
+}
+
+fn unary_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, UnaryExpression);
+
+	node.next.push(postfix_expression(read)?);
+
+	Some(node)
+}
+
+fn postfix_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, PostfixExpression);
+
+	node.next.push(primary_expression(read)?);
+
+	if reader_optional(read, TokenType::Punctuator, "(").is_some() {
+		node.data = Some("(".to_string());
+
+		if let Some(next) = argument_expression_list(read) {
+			node.next.push(next);
+		}
+
+		reader_expect(read, TokenType::Punctuator, ")");
+	}
+
+	Some(node)
+}
+
+fn argument_expression_list(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, ArgumentExpressionList);
+
+	node.next.push(assignment_expression(read)?);
+
+	while reader_optional(read, TokenType::Punctuator, ",").is_some() {
+		node.next.push(assignment_expression(read)?);
+	}
+
+	Some(node)
+}
+
+fn primary_expression(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, PrimaryExpression);
+
+	if let Some(next) = identifier(read) {
+		node.next.push(next);
+		return Some(node);
+	}
+
+	if let Some(next) = constant(read) {
+		node.next.push(next);
+		return Some(node);
+	}
+
+	None
+}
+
+fn jump_statement(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, JumpStatement);
+
+	reader_optional(read, TokenType::Keyword, "return")?;
+
+	if let Some(next) = expression(read) {
+		node.next.push(next);
+	}
+
+	reader_expect(read, TokenType::Punctuator, ";");
+
+	Some(node)
 }
