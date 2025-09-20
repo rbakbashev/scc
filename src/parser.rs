@@ -266,18 +266,24 @@ pub fn print_ast(ast: &AST)
 fn print_ast_rec(ast: &AST, level: usize)
 {
 	let indent = " ".repeat(2 * level);
+	let ty = ast.ty;
 	let data = match &ast.data {
 		Some(data) => &format!(" {data:?}"),
 		None => "",
 	};
 
-	println!("{indent}{:?}{data} [", ast.ty);
-
-	for next in &ast.next {
-		print_ast_rec(next, level + 1);
+	if ast.next.is_empty() {
+		println!("{indent}{ty:?}{data}");
 	}
+	else {
+		println!("{indent}{ty:?}{data} [",);
 
-	println!("{indent}]");
+		for next in &ast.next {
+			print_ast_rec(next, level + 1);
+		}
+
+		println!("{indent}]");
+	}
 }
 
 pub fn parse(filename: &str, input: &str, tokens: &[Token]) -> AST
