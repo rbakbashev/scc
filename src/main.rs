@@ -16,16 +16,19 @@ mod optparse;
 mod parser;
 mod utils;
 
+use args::ARGS;
+
 fn main()
 {
 	utils::set_internal_panic_hook();
+	args::parse();
 
-	let args = args::parse();
-	let file = utils::read_file(&args.input_files[0]);
-	let tokens = lexer::tokenize(&args.input_files[0], &file);
-	let ast = parser::parse(&args.input_files[0], &file, &tokens);
+	let filename = &ARGS.input_files[0];
+	let file = utils::read_file(filename);
+	let tokens = lexer::tokenize(filename, &file);
+	let ast = parser::parse(filename, &file, &tokens);
 
 	parser::print_ast(&ast);
 
-	let _ = args.output_file;
+	let _ = ARGS.output_file;
 }

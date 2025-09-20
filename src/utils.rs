@@ -34,6 +34,7 @@ impl<T, E: Display> CheckError<T> for Result<T, E>
 }
 
 const RED: &str = "\x1b[31m";
+const YELLOW: &str = "\x1b[33m";
 const NORMAL: &str = "\x1b[m";
 
 pub fn set_internal_panic_hook()
@@ -90,6 +91,11 @@ pub fn error(msg: impl Display) -> !
 	set_user_panic_hook();
 
 	panic!("{msg}");
+}
+
+pub fn warn(msg: impl Display)
+{
+	eprintln!("{YELLOW}warning{NORMAL}: {msg}");
 }
 
 pub fn intersperse<I: Iterator<Item = String>>(iter: I, separator: &str) -> String

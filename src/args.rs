@@ -1,7 +1,9 @@
+use std::ops::Deref;
 use std::path::Path;
+use std::sync::OnceLock;
 
 use crate::optparse::{Args, Opt, arg_present, arg_values, collect_args, usage, version};
-use crate::utils::{CheckError, error, format_list};
+use crate::utils::{CheckError, error, format_list, warn};
 
 pub struct ParsedArgs
 {
@@ -9,7 +11,24 @@ pub struct ParsedArgs
 	pub output_file: String,
 }
 
-pub fn parse() -> ParsedArgs
+pub struct WriteOnce<T>
+{
+	data: OnceLock<T>,
+}
+
+pub static ARGS: WriteOnce<ParsedArgs> = writeonce_empty();
+
+impl<T> Deref for WriteOnce<T>
+{
+	type Target = T;
+
+	fn deref(&self) -> &T
+	{
+		self.data.get().or_err("writeonce cell unset")
+	}
+}
+
+pub fn parse()
 {
 	let options = [
 		Opt::Flag { short: 'h', long: "help", desc: "show this message" },
@@ -32,7 +51,7 @@ pub fn parse() -> ParsedArgs
 		usage("scc", "<input file(s)>", &options, 0);
 	}
 
-	into_parsed_args(&results)
+	writeonce_assign(&ARGS, into_parsed_args(&results));
 }
 
 fn into_parsed_args(args: &Args) -> ParsedArgs
@@ -74,4 +93,16 @@ fn construct_output_filename(input_files: &[String]) -> String
 	path.set_extension("");
 
 	path.to_string_lossy().to_string()
+}
+
+const fn writeonce_empty<T>() -> WriteOnce<T>
+{
+	WriteOnce { data: OnceLock::new() }
+}
+
+fn writeonce_assign<T>(cell: &WriteOnce<T>, data: T)
+{
+	if cell.data.set(data).is_err() {
+		warn("writeonce cell was already set");
+	}
 }
