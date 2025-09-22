@@ -10,16 +10,16 @@ use crate::utils::error;
 pub enum Instruction
 {
 	FuncPrologue { name: String, stack_used: i32 },
-	Move { to: PlaceAssignment, from: PlaceAssignment },
-	MoveImm { dst: PlaceAssignment, value: i32 },
-	Add { dst: PlaceAssignment, src: PlaceAssignment },
-	Sub { dst: PlaceAssignment, src: PlaceAssignment },
+	Move { to: Assignment, from: Assignment },
+	MoveImm { dst: Assignment, value: i32 },
+	Add { dst: Assignment, src: Assignment },
+	Sub { dst: Assignment, src: Assignment },
 	Return,
 	FuncCall { name: String },
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum PlaceAssignment
+pub enum Assignment
 {
 	EAX,
 	_EBX,
@@ -32,17 +32,17 @@ pub enum PlaceAssignment
 	Stack(i32),
 }
 
-use PlaceAssignment::*;
+use Assignment::*;
 
 struct PlaceMap
 {
-	hmap: HashMap<u32, PlaceAssignment>,
+	hmap: HashMap<u32, Assignment>,
 	stack_used: i32,
 }
 
-static CALL_CONV: &[PlaceAssignment] = &[EDI, ESI, EDX, ECX];
+static CALL_CONV: &[Assignment] = &[EDI, ESI, EDX, ECX];
 
-impl Display for PlaceAssignment
+impl Display for Assignment
 {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
 	{
@@ -68,7 +68,7 @@ fn placemap_assign_args(map: &mut PlaceMap, params: &[u32])
 	}
 }
 
-fn assign_args(num_args: usize) -> Vec<PlaceAssignment>
+fn assign_args(num_args: usize) -> Vec<Assignment>
 {
 	let mut out = Vec::new();
 	let mut offset = 2;
@@ -86,7 +86,7 @@ fn assign_args(num_args: usize) -> Vec<PlaceAssignment>
 	out
 }
 
-fn placemap_get(map: &mut PlaceMap, place: u32) -> PlaceAssignment
+fn placemap_get(map: &mut PlaceMap, place: u32) -> Assignment
 {
 	let assignment;
 
