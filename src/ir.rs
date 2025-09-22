@@ -6,7 +6,12 @@ use crate::utils::{CheckError, error};
 #[rustfmt::skip]
 pub enum Node
 {
-	FunctionDefinition { name: String, params: Vec<u32>, body: Vec<Node> },
+	FuncDef { name: String, params: Vec<u32>, body: Vec<Node> },
+	Add { x: u32, y: u32, ret: u32 },
+	Sub { x: u32, y: u32, ret: u32 },
+	FuncCall { name: String, args: Vec<u32>, ret: u32 },
+	Constant { value: i32, place: u32 },
+	Return { place: u32 },
 }
 
 struct Scope
@@ -28,12 +33,22 @@ pub fn lower(ast: &AST) -> Vec<Node>
 pub fn print(ir: &[Node])
 {
 	for node in ir {
-		match node {
-			Node::FunctionDefinition { name, params, body } => {
-				println!("func {name} {params:?}");
-				print(body);
-			}
+		print_node(node);
+	}
+}
+
+fn print_node(node: &Node)
+{
+	match node {
+		Node::FuncDef { name, params, body } => {
+			println!("FNDEF {name} {params:?}");
+			print(body);
 		}
+		Node::Add { x, y, ret } => println!("ADD {x} {y} -> {ret}"),
+		Node::Sub { x, y, ret } => println!("SUB {x} {y} -> {ret}"),
+		Node::FuncCall { name, args, ret } => println!("FNCALL {name} {args:?} -> {ret}"),
+		Node::Constant { value, place } => println!("CONST {value} -> {place}"),
+		Node::Return { place } => println!("RET {place}"),
 	}
 }
 
@@ -96,6 +111,15 @@ fn scope_lookup(scope: &Scope, name: &str) -> Option<u32>
 	None
 }
 
+fn scope_allocate(scope: &mut Scope) -> u32
+{
+	let place = scope.next;
+
+	scope.next += 1;
+
+	place
+}
+
 fn walk(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 {
 	expect(ast, Type::TranslationUnit);
@@ -138,10 +162,218 @@ fn walk_function_def(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 
 	scope_pop(scope);
 
-	ir.push(Node::FunctionDefinition { name, params, body });
+	ir.push(Node::FuncDef { name, params, body });
 }
 
 fn walk_function_body(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 {
 	expect(ast, Type::CompoundStatement);
+
+	for block in &ast.next {
+		expect(block, Type::BlockItem);
+
+		walk_unlabeled_statement(&block.next[0], ir, scope);
+	}
+}
+
+fn walk_unlabeled_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
+{
+	expect(ast, Type::UnlabeledStatement);
+
+	for next in &ast.next {
+		match next.ty {
+			Type::JumpStatement => walk_jump_statement(next, ir, scope),
+			otherwise => error(format!("unexpected statement type: {otherwise:?}")),
+		}
+	}
+}
+
+fn walk_jump_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
+{
+	let place;
+
+	place = walk_expression(&ast.next[0], ir, scope);
+
+	ir.push(Node::Return { place });
+}
+
+fn walk_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::Expression);
+
+	walk_assignment_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_assignment_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::AssignmentExpression);
+
+	walk_conditional_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_conditional_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::ConditionalExpression);
+
+	walk_logical_or_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_logical_or_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::LogicalOrExpression);
+
+	walk_logical_and_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_logical_and_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::LogicalAndExpression);
+
+	walk_inclusive_or_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_inclusive_or_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::InclusiveOrExpression);
+
+	walk_exclusive_or_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_exclusive_or_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::ExclusiveOrExpression);
+
+	walk_and_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_and_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::AndExpression);
+
+	walk_equality_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_equality_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::EqualityExpression);
+
+	walk_relational_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_relational_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::RelationalExpression);
+
+	walk_shift_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_shift_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::ShiftExpression);
+
+	walk_additive_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_additive_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	let ret;
+	let x;
+	let y;
+	let node;
+
+	expect(ast, Type::AdditiveExpression);
+
+	x = walk_multiplicative_expression(&ast.next[0], ir, scope);
+
+	if ast.next.len() == 1 {
+		return x;
+	}
+
+	y = walk_multiplicative_expression(&ast.next[1], ir, scope);
+
+	ret = scope_allocate(scope);
+
+	node = match ast.data.as_deref() {
+		Some("+") => Node::Add { x, y, ret },
+		Some("-") => Node::Sub { x, y, ret },
+		Some(otherwise) => error(format!("unexpected additive data: {otherwise:?}")),
+		None => error("additive expression's data not set"),
+	};
+
+	ir.push(node);
+
+	ret
+}
+
+fn walk_multiplicative_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::MultiplicativeExpression);
+
+	walk_cast_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_cast_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::CastExpression);
+
+	walk_unary_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_unary_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	expect(ast, Type::UnaryExpression);
+
+	walk_postfix_expression(&ast.next[0], ir, scope)
+}
+
+fn walk_postfix_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	let primary = &ast.next[0];
+	let name;
+	let mut args = Vec::new();
+	let ret;
+
+	expect(ast, Type::PostfixExpression);
+
+	if ast.data.is_none() {
+		return walk_primary_expression(primary, ir, scope);
+	}
+
+	assert_eq!(primary.next[0].ty, Type::Identifier);
+
+	name = primary.next[0].data.clone().or_err("function name not set");
+
+	for arg in &ast.next[1].next {
+		args.push(walk_assignment_expression(arg, ir, scope));
+	}
+
+	ret = scope_allocate(scope);
+
+	ir.push(Node::FuncCall { name, args, ret });
+
+	ret
+}
+
+fn walk_primary_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
+{
+	let next = &ast.next[0];
+	let data = next.data.as_ref().or_err("primary expression's data not set");
+	let value;
+	let place;
+
+	expect(ast, Type::PrimaryExpression);
+
+	match next.ty {
+		Type::Identifier => scope_lookup(scope, data)
+			.or_err(format!("variable {data:?} was not found in the current scope")),
+		Type::Constant => {
+			value = data.parse::<i32>().try_to(format!("parse {data:?} as a number"));
+			place = scope_allocate(scope);
+
+			ir.push(Node::Constant { value, place });
+
+			place
+		}
+		otherwise => error(format!("unexpected primary expression type {otherwise:?}")),
+	}
 }
