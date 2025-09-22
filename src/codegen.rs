@@ -7,7 +7,7 @@ use crate::utils::error;
 #[rustfmt::skip]
 pub enum Instruction
 {
-	FuncPrologue(String),
+	FuncPrologue { name: String, stack_used: i32 },
 	FuncEpilogue,
 	Move { to: PlaceAssignment, from: PlaceAssignment },
 	MoveImm { dst: PlaceAssignment, value: i32 },
@@ -36,14 +36,14 @@ use PlaceAssignment::*;
 struct PlaceMap
 {
 	hmap: HashMap<u32, PlaceAssignment>,
-	stack_ptr: i32,
+	stack_used: i32,
 }
 
 static CALL_CONV: &[PlaceAssignment] = &[EDI, ESI, EDX, ECX];
 
 fn placemap_new() -> PlaceMap
 {
-	PlaceMap { hmap: HashMap::new(), stack_ptr: 0 }
+	PlaceMap { hmap: HashMap::new(), stack_used: 0 }
 }
 
 fn placemap_assign_args(map: &mut PlaceMap, params: &[u32])
@@ -81,8 +81,8 @@ fn placemap_get(map: &mut PlaceMap, place: u32) -> PlaceAssignment
 		*assignment
 	}
 	else {
-		map.stack_ptr -= 1;
-		assignment = Stack(map.stack_ptr * 8);
+		map.stack_used += 8;
+		assignment = Stack(-map.stack_used);
 
 		map.hmap.insert(place, assignment);
 
@@ -90,7 +90,7 @@ fn placemap_get(map: &mut PlaceMap, place: u32) -> PlaceAssignment
 	}
 }
 
-pub fn gen_instr(ir: &[ir::Node]) -> Vec<Instruction>
+pub fn gen_instructions(ir: &[ir::Node]) -> Vec<Instruction>
 {
 	let mut out = Vec::new();
 
@@ -116,16 +116,18 @@ fn gen_toplevel(node: &ir::Node, inst: &mut Vec<Instruction>)
 
 fn gen_fn_def(name: &str, params: &[u32], body: &[ir::Node], inst: &mut Vec<Instruction>)
 {
+	let name = name.to_string();
 	let mut map = placemap_new();
+	let mut fn_inst = Vec::new();
 
 	placemap_assign_args(&mut map, params);
 
-	inst.push(Instruction::FuncPrologue(name.to_owned()));
-
 	for node in body {
-		gen_node(node, &mut map, inst);
+		gen_node(node, &mut map, &mut fn_inst);
 	}
 
+	inst.push(Instruction::FuncPrologue { name, stack_used: map.stack_used });
+	inst.append(&mut fn_inst);
 	inst.push(Instruction::FuncEpilogue);
 }
 

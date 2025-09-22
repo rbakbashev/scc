@@ -32,7 +32,7 @@ fn main()
 	let tokens = lexer::tokenize(filename, &file);
 	let ast = parser::parse(filename, &file, &tokens);
 	let ir = ir::lower(&ast);
-	let code = codegen::gen_instr(&ir);
+	let code = codegen::gen_instructions(&ir);
 
 	println!();
 	println!("{code:#?}");
