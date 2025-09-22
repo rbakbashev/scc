@@ -17,6 +17,7 @@ mod codegen;
 mod ir;
 mod lexer;
 mod optparse;
+mod output;
 mod parser;
 mod utils;
 
@@ -33,10 +34,7 @@ fn main()
 	let ast = parser::parse(filename, &file, &tokens);
 	let ir = ir::lower(&ast);
 	let code = codegen::gen_instructions(&ir);
+	let output = output::construct_file(&code);
 
-	println!();
-	println!("{code:#?}");
-
-	let _ = ARGS.assembly;
-	let _ = ARGS.output_file;
+	utils::write_to_file(&ARGS.output_file, &output);
 }

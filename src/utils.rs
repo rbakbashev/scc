@@ -144,3 +144,8 @@ pub fn read_file(path: &str) -> String
 {
 	std::fs::read_to_string(path).try_to(format!("read file {path:?}"))
 }
+
+pub fn write_to_file(path: &str, contents: &[u8])
+{
+	std::fs::write(path, contents).try_to(format!("write to file {path:?}"));
+}

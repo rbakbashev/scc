@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::fmt::{self, Display};
 
+use crate::args::ARGS;
 use crate::ir;
 use crate::utils::error;
 
@@ -39,6 +41,18 @@ struct PlaceMap
 }
 
 static CALL_CONV: &[PlaceAssignment] = &[EDI, ESI, EDX, ECX];
+
+impl Display for PlaceAssignment
+{
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+	{
+		if let Stack(offset) = self {
+			return write!(f, "[rbp{offset:+}]");
+		}
+
+		write!(f, "{}", format!("{self:?}").to_lowercase())
+	}
+}
 
 fn placemap_new() -> PlaceMap
 {
@@ -95,6 +109,11 @@ pub fn gen_instructions(ir: &[ir::Node]) -> Vec<Instruction>
 
 	for node in ir {
 		gen_toplevel(node, &mut out);
+	}
+
+	if ARGS.verbose {
+		println!();
+		println!("{out:#?}");
 	}
 
 	out
