@@ -10,6 +10,7 @@ pub struct ParsedArgs
 	pub input_files: Vec<String>,
 	pub output_file: String,
 	pub verbose: bool,
+	pub assembly: bool,
 }
 
 pub struct WriteOnce<T>
@@ -41,6 +42,7 @@ pub fn parse()
 			hint: "<filename>",
 		},
 		Opt::Flag { short: 'V', long: "verbose", desc: "enable verbose output" },
+		Opt::Flag { short: 'S', long: "assembly", desc: "output assembly" },
 	];
 
 	let results = collect_args(&options);
@@ -59,32 +61,33 @@ pub fn parse()
 fn into_parsed_args(args: &Args) -> ParsedArgs
 {
 	let input_files = if args.free.is_empty() {
-		vec!["examples/add.c".to_owned()]
-		// error("no input filename(s) given");
+		error("no input filename(s) given");
 	}
 	else {
 		args.free.clone()
 	};
 
-	let output_file = get_output_filename(args, &input_files);
+	let assembly = arg_present(args, 'S');
+
+	let output_file = get_output_filename(args, &input_files, assembly);
 
 	let verbose = arg_present(args, 'V');
 
-	ParsedArgs { input_files, output_file, verbose }
+	ParsedArgs { input_files, output_file, verbose, assembly }
 }
 
-fn get_output_filename(args: &Args, input_files: &[String]) -> String
+fn get_output_filename(args: &Args, input_files: &[String], assembly: bool) -> String
 {
 	let outputs = arg_values(args, 'o');
 
 	match outputs.as_slice() {
-		[] => construct_output_filename(input_files),
+		[] => construct_output_filename(input_files, assembly),
 		[one] => one.clone(),
 		many => error(format!("multiple output filenames provided: {}", format_list(many))),
 	}
 }
 
-fn construct_output_filename(input_files: &[String]) -> String
+fn construct_output_filename(input_files: &[String], assembly: bool) -> String
 {
 	let input_file = match input_files {
 		[one] => one,
@@ -94,7 +97,12 @@ fn construct_output_filename(input_files: &[String]) -> String
 	let basename = Path::new(input_file).file_name().or_err("input filename ends in '/..'");
 	let mut path = Path::new(basename).to_path_buf();
 
-	path.set_extension("");
+	if assembly {
+		path.set_extension("s");
+	}
+	else {
+		path.set_extension("");
+	}
 
 	path.to_string_lossy().to_string()
 }
