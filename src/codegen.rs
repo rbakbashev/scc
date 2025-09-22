@@ -8,26 +8,25 @@ use crate::utils::error;
 pub enum Instruction
 {
 	FuncPrologue { name: String, stack_used: i32 },
-	FuncEpilogue,
 	Move { to: PlaceAssignment, from: PlaceAssignment },
 	MoveImm { dst: PlaceAssignment, value: i32 },
 	Add { dst: PlaceAssignment, src: PlaceAssignment },
 	Sub { dst: PlaceAssignment, src: PlaceAssignment },
 	Return,
-	FuncCall(String),
+	FuncCall { name: String },
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum PlaceAssignment
 {
 	EAX,
-	EBX,
+	_EBX,
 	ECX,
 	EDX,
 	ESI,
 	EDI,
-	EBP,
-	ESP,
+	_EBP,
+	_ESP,
 	Stack(i32),
 }
 
@@ -128,7 +127,6 @@ fn gen_fn_def(name: &str, params: &[u32], body: &[ir::Node], inst: &mut Vec<Inst
 
 	inst.push(Instruction::FuncPrologue { name, stack_used: map.stack_used });
 	inst.append(&mut fn_inst);
-	inst.push(Instruction::FuncEpilogue);
 }
 
 fn gen_node(node: &ir::Node, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
@@ -183,6 +181,7 @@ fn gen_fn_call(name: &str, args: &[u32], ret: u32, map: &mut PlaceMap, inst: &mu
 	let assignemnts = assign_args(args.len());
 	let mut place_assignment;
 	let ret = placemap_get(map, ret);
+	let name = name.to_string();
 
 	for (&place, assignment) in args.iter().zip(assignemnts) {
 		place_assignment = placemap_get(map, place);
@@ -190,6 +189,6 @@ fn gen_fn_call(name: &str, args: &[u32], ret: u32, map: &mut PlaceMap, inst: &mu
 		inst.push(Instruction::Move { to: assignment, from: place_assignment });
 	}
 
-	inst.push(Instruction::FuncCall(name.to_string()));
+	inst.push(Instruction::FuncCall { name });
 	inst.push(Instruction::Move { to: ret, from: EAX });
 }
