@@ -41,15 +41,34 @@ fn print_node(node: &Node)
 {
 	match node {
 		Node::FuncDef { name, params, body } => {
-			println!("FNDEF {name} {params:?}");
+			println!("FNDEF {name} {}", format_places(params));
 			print(body);
 		}
-		Node::Add { x, y, ret } => println!("ADD {x} {y} -> {ret}"),
-		Node::Sub { x, y, ret } => println!("SUB {x} {y} -> {ret}"),
-		Node::FuncCall { name, args, ret } => println!("FNCALL {name} {args:?} -> {ret}"),
-		Node::Constant { value, place } => println!("CONST {value} -> {place}"),
-		Node::Return { place } => println!("RET {place}"),
+		Node::Add { x, y, ret } => println!("ADD ${x} ${y} -> ${ret}"),
+		Node::Sub { x, y, ret } => println!("SUB ${x} ${y} -> ${ret}"),
+		Node::FuncCall { name, args, ret } =>
+			println!("FNCALL {name} {} -> ${ret}", format_places(args)),
+		Node::Constant { value, place } => println!("CONST {value} -> ${place}"),
+		Node::Return { place } => println!("RET ${place}"),
 	}
+}
+
+fn format_places(places: &[u32]) -> String
+{
+	let mut out = "(".to_string();
+	let mut iter = places.iter().peekable();
+
+	while let Some(place) = iter.next() {
+		out += &format!("${place}");
+
+		if iter.peek().is_some() {
+			out += ", ";
+		}
+	}
+
+	out += ")";
+
+	out
 }
 
 fn expect(ast: &AST, expected: Type)
