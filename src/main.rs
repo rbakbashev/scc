@@ -6,6 +6,7 @@
 	clippy::match_same_arms,
 	clippy::missing_const_for_fn,
 	clippy::needless_late_init,
+	clippy::needless_range_loop,
 	clippy::option_if_let_else,
 	clippy::unnecessary_wraps,
 	clippy::upper_case_acronyms
