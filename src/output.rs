@@ -22,6 +22,8 @@ fn construct_assembly(code: &[Instruction]) -> Vec<u8>
 		write_asm_instr(instr, &mut out);
 	}
 
+	write_asm_epilogue(&mut out);
+
 	out.into_bytes()
 }
 
@@ -35,7 +37,6 @@ fn write_asm_instr(instr: &Instruction, out: &mut String)
 {
 	match instr {
 		Instruction::FuncPrologue { name, stack_used } => {
-			writeln!(out, "global {name}");
 			writeln!(out, "{name}:");
 			writeln!(out, "\tpush rbp");
 			writeln!(out, "\tmov rbp, rsp");
@@ -45,7 +46,7 @@ fn write_asm_instr(instr: &Instruction, out: &mut String)
 			writeln!(out, "\tmov {to}, {from}");
 		}
 		Instruction::MoveImm { dst, value } => {
-			writeln!(out, "\tmov {dst}, {value}");
+			writeln!(out, "\tmov dword {dst}, {value}");
 		}
 		Instruction::Add { dst, src } => {
 			writeln!(out, "\tadd {dst}, {src}");
@@ -62,4 +63,14 @@ fn write_asm_instr(instr: &Instruction, out: &mut String)
 			writeln!(out, "\tcall {name}");
 		}
 	}
+}
+
+fn write_asm_epilogue(out: &mut String)
+{
+	writeln!(out, "global _start");
+	writeln!(out, "_start:");
+	writeln!(out, "\tcall main");
+	writeln!(out, "\tmov rdi, rax");
+	writeln!(out, "\tmov rax, 60");
+	writeln!(out, "\tsyscall");
 }
