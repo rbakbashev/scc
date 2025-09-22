@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::args::ARGS;
 use crate::parser::{AST, Type};
 use crate::utils::{CheckError, error};
 
@@ -27,6 +28,11 @@ pub fn lower(ast: &AST) -> Vec<Node>
 
 	walk(ast, &mut nodes, &mut scope);
 
+	if ARGS.verbose {
+		println!();
+		print(&nodes);
+	}
+
 	nodes
 }
 
@@ -39,17 +45,31 @@ pub fn print(ir: &[Node])
 
 fn print_node(node: &Node)
 {
+	let ty = format_node_type(node);
+
 	match node {
 		Node::FuncDef { name, params, body } => {
-			println!("FNDEF {name} {}", format_places(params));
+			println!("{ty} {name} {}", format_places(params));
 			print(body);
 		}
-		Node::Add { x, y, ret } => println!("ADD ${x} ${y} -> ${ret}"),
-		Node::Sub { x, y, ret } => println!("SUB ${x} ${y} -> ${ret}"),
+		Node::Add { x, y, ret } => println!("{ty} ${x} ${y} -> ${ret}"),
+		Node::Sub { x, y, ret } => println!("{ty} ${x} ${y} -> ${ret}"),
 		Node::FuncCall { name, args, ret } =>
-			println!("FNCALL {name} {} -> ${ret}", format_places(args)),
-		Node::Constant { value, place } => println!("CONST {value} -> ${place}"),
-		Node::Return { place } => println!("RET ${place}"),
+			println!("{ty} {name} {} -> ${ret}", format_places(args)),
+		Node::Constant { value, place } => println!("{ty} {value} -> ${place}"),
+		Node::Return { place } => println!("{ty} ${place}"),
+	}
+}
+
+pub fn format_node_type(node: &Node) -> &str
+{
+	match node {
+		Node::FuncDef { .. } => "FNDEF",
+		Node::Add { .. } => "ADD",
+		Node::Sub { .. } => "SUB",
+		Node::FuncCall { .. } => "FNCALL",
+		Node::Constant { .. } => "CONST",
+		Node::Return { .. } => "RET",
 	}
 }
 

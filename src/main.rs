@@ -12,6 +12,7 @@
 )]
 
 mod args;
+mod codegen;
 mod ir;
 mod lexer;
 mod optparse;
@@ -30,8 +31,11 @@ fn main()
 	let tokens = lexer::tokenize(filename, &file);
 	let ast = parser::parse(filename, &file, &tokens);
 	let ir = ir::lower(&ast);
+	let code = codegen::gen_instr(&ir);
 
-	ir::print(&ir);
+	println!();
+	println!("{code:#?}");
 
+	let _ = ARGS.assembly;
 	let _ = ARGS.output_file;
 }
