@@ -5,6 +5,7 @@ use std::fmt::Write;
 
 use crate::args::ARGS;
 use crate::codegen::{Assignment, Instruction};
+use crate::elf::construct_elf;
 use crate::utils::{CheckError, error};
 
 pub fn construct_file(code: &[Instruction]) -> Vec<u8>
@@ -81,9 +82,9 @@ fn write_asm_epilogue(out: &mut String)
 
 fn construct_executable(code: &[Instruction]) -> Vec<u8>
 {
-	let (text, _entrypoint) = construct_code(code);
+	let (text, entrypoint) = construct_code(code);
 
-	text
+	construct_elf(text, entrypoint)
 }
 
 fn construct_code(code: &[Instruction]) -> (Vec<u8>, usize)
@@ -257,7 +258,7 @@ fn write_fn_call(address: usize, out: &mut Vec<u8>)
 {
 	let idx = i32::try_from(out.len()).or_err("code len overflows u32");
 	let address = i32::try_from(address).or_err("function's address overflows u32");
-	let offset = idx - address;
+	let offset = address - idx - 5;
 
 	out.push(0xe8);
 	out.extend(offset.to_le_bytes());

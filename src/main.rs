@@ -8,12 +8,14 @@
 	clippy::needless_late_init,
 	clippy::needless_range_loop,
 	clippy::option_if_let_else,
+	clippy::struct_field_names,
 	clippy::unnecessary_wraps,
 	clippy::upper_case_acronyms
 )]
 
 mod args;
 mod codegen;
+mod elf;
 mod ir;
 mod lexer;
 mod optparse;
