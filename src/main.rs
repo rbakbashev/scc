@@ -38,5 +38,5 @@ fn main()
 	let code = codegen::gen_instructions(&ir);
 	let output = output::construct_file(&code);
 
-	utils::write_to_file(&ARGS.output_file, &output);
+	utils::write_to_file(&ARGS.output_file, &output, !ARGS.assembly);
 }

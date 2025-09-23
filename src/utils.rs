@@ -1,4 +1,7 @@
 use std::fmt::Display;
+use std::fs::File;
+use std::io::Write;
+use std::os::unix::fs::OpenOptionsExt;
 use std::panic::PanicHookInfo;
 
 pub trait CheckError<T>: Sized
@@ -145,7 +148,16 @@ pub fn read_file(path: &str) -> String
 	std::fs::read_to_string(path).try_to(format!("read file {path:?}"))
 }
 
-pub fn write_to_file(path: &str, contents: &[u8])
+pub fn write_to_file(path: &str, contents: &[u8], executable: bool)
 {
-	std::fs::write(path, contents).try_to(format!("write to file {path:?}"));
+	let mode = if executable { 0o744 } else { 0o644 };
+
+	let mut file = File::options()
+		.create(true)
+		.write(true)
+		.mode(mode)
+		.open(path)
+		.try_to(format!("create file {path:?}"));
+
+	file.write_all(contents).try_to(format!("write to file {path:?}"));
 }
