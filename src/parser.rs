@@ -23,6 +23,7 @@ pub enum Type
 	CompoundStatement,
 	ConditionalExpression,
 	Constant,
+	Declaration,
 	DeclarationSpecifiers,
 	Declarator,
 	EqualityExpression,
@@ -34,6 +35,10 @@ pub enum Type
 	FunctionDefinition,
 	Identifier,
 	InclusiveOrExpression,
+	InitDeclarator,
+	InitDeclaratorList,
+	Initializer,
+	IterationStatement,
 	JumpStatement,
 	LogicalAndExpression,
 	LogicalOrExpression,
@@ -41,8 +46,10 @@ pub enum Type
 	ParameterDeclaration,
 	ParameterList,
 	PostfixExpression,
+	PrimaryBlock,
 	PrimaryExpression,
 	RelationalExpression,
+	SelectionStatement,
 	ShiftExpression,
 	TranslationUnit,
 	TypeSpecifier,
@@ -152,6 +159,25 @@ fn reader_expect(read: &mut TokenReader, token_type: TokenType, target: &str)
 
 	if !reader_matches(read, token_type, target) {
 		parse_error(read, format!("unexpected token {text:?}, expected {target:?}"));
+	}
+}
+
+fn reader_expect_node<F>(read: &mut TokenReader, node: &mut AST, function: F)
+where
+	F: Fn(&mut TokenReader) -> Option<AST>,
+{
+	let (_ty, text) = reader_data(read);
+
+	if let Some(next) = function(read) {
+		node.next.push(next);
+		return;
+	}
+
+	if let Some(name) = std::any::type_name::<F>().replace('_', " ").split("::").last() {
+		parse_error(read, format!("unexpected token {text:?} in {name}"));
+	}
+	else {
+		parse_error(read, format!("unexpected token {text:?}"));
 	}
 }
 
@@ -478,6 +504,14 @@ fn block_item(read: &mut TokenReader) -> Option<AST>
 
 	copy = *read;
 
+	if let Some(next) = declaration(&mut copy) {
+		node.next.push(next);
+		*read = copy;
+		return Some(node);
+	}
+
+	copy = *read;
+
 	if let Some(next) = unlabeled_statement(&mut copy) {
 		node.next.push(next);
 		*read = copy;
@@ -485,6 +519,56 @@ fn block_item(read: &mut TokenReader) -> Option<AST>
 	}
 
 	None
+}
+
+fn declaration(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, Declaration);
+
+	node.next.push(declaration_specifiers(read)?);
+
+	if let Some(next) = init_declarator_list(read) {
+		node.next.push(next);
+	}
+
+	reader_expect(read, TokenType::Punctuator, ";");
+
+	Some(node)
+}
+
+fn init_declarator_list(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, InitDeclaratorList);
+
+	node.next.push(init_declarator(read)?);
+
+	while reader_matches(read, TokenType::Punctuator, ",") {
+		node.next.push(init_declarator(read)?);
+	}
+
+	Some(node)
+}
+
+fn init_declarator(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, InitDeclarator);
+
+	node.next.push(declarator(read)?);
+
+	if reader_matches(read, TokenType::Punctuator, "=") {
+		node.next.push(initializer(read)?);
+	}
+
+	Some(node)
+}
+
+fn initializer(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, Initializer);
+
+	reader_expect_node(read, &mut node, assignment_expression);
+
+	Some(node)
 }
 
 fn unlabeled_statement(read: &mut TokenReader) -> Option<AST>
@@ -495,6 +579,14 @@ fn unlabeled_statement(read: &mut TokenReader) -> Option<AST>
 	copy = *read;
 
 	if let Some(next) = expression_statement(&mut copy) {
+		node.next.push(next);
+		*read = copy;
+		return Some(node);
+	}
+
+	copy = *read;
+
+	if let Some(next) = primary_block(&mut copy) {
 		node.next.push(next);
 		*read = copy;
 		return Some(node);
@@ -545,7 +637,21 @@ fn expression(read: &mut TokenReader) -> Option<AST>
 
 fn assignment_expression(read: &mut TokenReader) -> Option<AST>
 {
+	let operators = ["=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|="];
 	let mut node = ast_node(read, AssignmentExpression);
+	let mut copy;
+
+	copy = *read;
+
+	if let Some(next) = unary_expression(&mut copy)
+		&& let Some(data) = reader_eat_any(&mut copy, TokenType::Punctuator, &operators)
+	{
+		node.next.push(next);
+		node.data = Some(data);
+		*read = copy;
+		reader_expect_node(read, &mut node, assignment_expression);
+		return Some(node);
+	}
 
 	if let Some(next) = conditional_expression(read) {
 		node.next.push(next);
@@ -623,6 +729,11 @@ fn relational_expression(read: &mut TokenReader) -> Option<AST>
 	let mut node = ast_node(read, RelationalExpression);
 
 	node.next.push(shift_expression(read)?);
+
+	if let Some(data) = reader_eat_any(read, TokenType::Punctuator, &["<", ">", "<=", ">="]) {
+		node.data = Some(data);
+		node.next.push(shift_expression(read)?);
+	}
 
 	Some(node)
 }
@@ -724,6 +835,58 @@ fn primary_expression(read: &mut TokenReader) -> Option<AST>
 	}
 
 	None
+}
+
+fn primary_block(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, PrimaryBlock);
+
+	if let Some(next) = compound_statement(read) {
+		node.next.push(next);
+		return Some(node);
+	}
+
+	if let Some(next) = selection_statement(read) {
+		node.next.push(next);
+		return Some(node);
+	}
+
+	if let Some(next) = iteration_statement(read) {
+		node.next.push(next);
+		return Some(node);
+	}
+
+	None
+}
+
+fn selection_statement(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, SelectionStatement);
+
+	reader_optional(read, TokenType::Keyword, "if")?;
+
+	reader_expect(read, TokenType::Punctuator, "(");
+	reader_expect_node(read, &mut node, expression);
+	reader_expect(read, TokenType::Punctuator, ")");
+
+	reader_expect_node(read, &mut node, unlabeled_statement);
+
+	Some(node)
+}
+
+fn iteration_statement(read: &mut TokenReader) -> Option<AST>
+{
+	let mut node = ast_node(read, IterationStatement);
+
+	reader_optional(read, TokenType::Keyword, "while")?;
+
+	reader_expect(read, TokenType::Punctuator, "(");
+	reader_expect_node(read, &mut node, expression);
+	reader_expect(read, TokenType::Punctuator, ")");
+
+	reader_expect_node(read, &mut node, unlabeled_statement);
+
+	Some(node)
 }
 
 fn jump_statement(read: &mut TokenReader) -> Option<AST>
