@@ -284,7 +284,7 @@ pub fn print_ast(ast: &AST)
 
 fn print_ast_rec(ast: &AST, level: usize)
 {
-	let indent = " ".repeat(2 * level);
+	let indent = " ".repeat(level);
 	let ty = ast.ty;
 	let data = match &ast.data {
 		Some(data) => &format!(" {data:?}"),

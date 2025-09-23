@@ -51,36 +51,44 @@ pub fn lower(ast: &AST) -> Vec<Node>
 
 pub fn print(ir: &[Node])
 {
+	print_nodes(ir, 0);
+}
+
+fn print_nodes(ir: &[Node], level: usize)
+{
 	for node in ir {
-		print_node(node);
+		print_node(node, level);
 	}
 }
 
-fn print_node(node: &Node)
+fn print_node(node: &Node, level: usize)
 {
 	let ty = format_node_type(node);
+	let indent = " ".repeat(2 * level);
+
+	print!("{indent}{ty} ");
 
 	match node {
 		Node::FuncDef { name, params, body } => {
-			println!("{ty} {name} {}", format_places(params));
-			print(body);
+			println!("{name} {}", format_places(params));
+			print_nodes(body, level + 1);
 		}
-		Node::Add { x, y, ret } => println!("{ty} ${x} ${y} -> ${ret}"),
-		Node::Sub { x, y, ret } => println!("{ty} ${x} ${y} -> ${ret}"),
+		Node::Add { x, y, ret } => println!("${x} ${y} -> ${ret}"),
+		Node::Sub { x, y, ret } => println!("${x} ${y} -> ${ret}"),
 		Node::FuncCall { name, args, ret } =>
-			println!("{ty} {name} {} -> ${ret}", format_places(args)),
-		Node::Constant { value, place } => println!("{ty} {value} -> ${place}"),
-		Node::Return { place } => println!("{ty} ${place}"),
+			println!("{name} {} -> ${ret}", format_places(args)),
+		Node::Constant { value, place } => println!("{value} -> ${place}"),
+		Node::Return { place } => println!("${place}"),
 		Node::If { cond, body } => {
-			println!("{ty} ${cond}");
-			print(body);
+			println!("${cond}");
+			print_nodes(body, level + 1);
 		}
 		Node::While { cond, body } => {
-			println!("{ty} ${cond}");
-			print(body);
+			println!("${cond}");
+			print_nodes(body, level + 1);
 		}
-		Node::Assign { lhs, rhs } => println!("{ty} ${lhs} = ${rhs}"),
-		Node::Compare { op, x, y, ret } => println!("{ty} ${x} {op:?} ${y} -> ${ret}"),
+		Node::Assign { lhs, rhs } => println!("${lhs} = ${rhs}"),
+		Node::Compare { op, x, y, ret } => println!("${x} {op:?} ${y} -> ${ret}"),
 	}
 }
 
