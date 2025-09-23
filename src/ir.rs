@@ -30,8 +30,14 @@ pub enum Cmp
 
 struct Scope
 {
-	stack: Vec<HashMap<String, u32>>,
+	stack: Vec<ScopeLevel>,
 	next: u32,
+}
+
+struct ScopeLevel
+{
+	map: HashMap<String, u32>,
+	allocated: usize,
 }
 
 pub fn lower(ast: &AST) -> Vec<Node>
@@ -137,18 +143,18 @@ fn expect(ast: &AST, expected: Type)
 
 fn scope_new() -> Scope
 {
-	Scope { stack: vec![HashMap::new()], next: 0 }
+	Scope { stack: vec![ScopeLevel { map: HashMap::new(), allocated: 0 }], next: 0 }
 }
 
 fn scope_push(scope: &mut Scope)
 {
-	scope.stack.push(HashMap::new());
+	scope.stack.push(ScopeLevel { map: HashMap::new(), allocated: 0 });
 }
 
 fn scope_pop(scope: &mut Scope)
 {
 	let num_vars = match scope.stack.last() {
-		Some(last) => last.len(),
+		Some(level) => level.allocated,
 		None => return,
 	};
 	let num_u32 = u32::try_from(num_vars).or_err("number of places overflows u32");
@@ -169,15 +175,22 @@ fn scope_insert(scope: &mut Scope, name: String) -> u32
 	place = scope.next;
 
 	scope.next += 1;
-	scope.stack.last_mut().or_err("empty scope stack").insert(name, place);
+
+	scope_top(scope).map.insert(name, place);
+	scope_top(scope).allocated += 1;
 
 	place
+}
+
+fn scope_top(scope: &mut Scope) -> &mut ScopeLevel
+{
+	scope.stack.last_mut().or_err("empty scope stack")
 }
 
 fn scope_lookup(scope: &Scope, name: &str) -> Option<u32>
 {
 	for level in scope.stack.iter().rev() {
-		if let Some(&place) = level.get(name) {
+		if let Some(&place) = level.map.get(name) {
 			return Some(place);
 		}
 	}
@@ -190,13 +203,14 @@ fn scope_allocate(scope: &mut Scope) -> u32
 	let place = scope.next;
 
 	scope.next += 1;
+	scope_top(scope).allocated += 1;
 
 	place
 }
 
 fn scope_assign(scope: &mut Scope, name: String, place: u32)
 {
-	scope.stack.last_mut().or_err("empty scope stack").insert(name, place);
+	scope_top(scope).map.insert(name, place);
 }
 
 fn walk(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
