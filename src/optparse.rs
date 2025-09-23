@@ -29,25 +29,25 @@ pub fn collect_args(options: &[Opt]) -> Args
 	let _progname = iter.next();
 
 	while let Some(arg) = iter.next() {
-		let mut found = false;
-
-		for option in options {
-			if match_option(&arg, option, &mut iter, &mut args) {
-				found = true;
-				break;
-			}
-		}
-
-		if !found {
-			if arg.starts_with('-') {
-				error(format!("unrecognized option '{arg}'"));
-			}
-
-			args.free.push(arg);
-		}
+		process_arg(arg, options, &mut iter, &mut args);
 	}
 
 	args
+}
+
+fn process_arg(arg: String, options: &[Opt], iter: &mut ArgsIterator, args: &mut Args)
+{
+	for option in options {
+		if match_option(&arg, option, iter, args) {
+			return;
+		}
+	}
+
+	if arg.starts_with('-') {
+		error(format!("unrecognized option '{arg}'"));
+	}
+
+	args.free.push(arg);
 }
 
 fn match_option(arg: &str, option: &Opt, iter: &mut ArgsIterator, args: &mut Args) -> bool
