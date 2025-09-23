@@ -13,6 +13,19 @@ pub enum Node
 	FuncCall { name: String, args: Vec<u32>, ret: u32 },
 	Constant { value: i32, place: u32 },
 	Return { place: u32 },
+	If { cond: u32, body: Vec<Node> },
+	While { cond: u32, body: Vec<Node> },
+	Assign { lhs: u32, rhs: u32 },
+	Compare { op: Cmp, x: u32, y: u32, ret: u32 },
+}
+
+#[derive(Debug)]
+pub enum Cmp
+{
+	LT,
+	GT,
+	LTE,
+	GTE,
 }
 
 struct Scope
@@ -58,6 +71,16 @@ fn print_node(node: &Node)
 			println!("{ty} {name} {} -> ${ret}", format_places(args)),
 		Node::Constant { value, place } => println!("{ty} {value} -> ${place}"),
 		Node::Return { place } => println!("{ty} ${place}"),
+		Node::If { cond, body } => {
+			println!("{ty} ${cond}");
+			print(body);
+		}
+		Node::While { cond, body } => {
+			println!("{ty} ${cond}");
+			print(body);
+		}
+		Node::Assign { lhs, rhs } => println!("{ty} ${lhs} = ${rhs}"),
+		Node::Compare { op, x, y, ret } => println!("{ty} ${x} {op:?} ${y} -> ${ret}"),
 	}
 }
 
@@ -70,6 +93,10 @@ pub fn format_node_type(node: &Node) -> &str
 		Node::FuncCall { .. } => "FNCALL",
 		Node::Constant { .. } => "CONST",
 		Node::Return { .. } => "RET",
+		Node::If { .. } => "IF",
+		Node::While { .. } => "WHILE",
+		Node::Assign { .. } => "ASSIGN",
+		Node::Compare { .. } => "CMP",
 	}
 }
 
@@ -159,6 +186,11 @@ fn scope_allocate(scope: &mut Scope) -> u32
 	place
 }
 
+fn scope_assign(scope: &mut Scope, name: String, place: u32)
+{
+	scope.stack.last_mut().or_err("empty scope stack").insert(name, place);
+}
+
 fn walk(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 {
 	expect(ast, Type::TranslationUnit);
@@ -197,21 +229,52 @@ fn walk_function_def(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 		params.push(scope_insert(scope, param_ident));
 	}
 
-	walk_function_body(&ast.next[2], &mut body, scope);
+	walk_compound_statement(&ast.next[2], &mut body, scope);
 
 	scope_pop(scope);
 
 	ir.push(Node::FuncDef { name, params, body });
 }
 
-fn walk_function_body(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
+fn walk_compound_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 {
+	let mut next;
+
 	expect(ast, Type::CompoundStatement);
 
 	for block in &ast.next {
 		expect(block, Type::BlockItem);
 
-		walk_unlabeled_statement(&block.next[0], ir, scope);
+		next = &block.next[0];
+
+		match next.ty {
+			Type::Declaration => walk_declaration(next, ir, scope),
+			Type::UnlabeledStatement => walk_unlabeled_statement(next, ir, scope),
+			otherwise => error(format!("unexpected block item type: {otherwise:?}")),
+		}
+	}
+}
+
+fn walk_declaration(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
+{
+	let list = &ast.next[1];
+	let mut name;
+	let mut place;
+
+	expect(list, Type::InitDeclaratorList);
+
+	for init_decl in &list.next {
+		expect(init_decl, Type::InitDeclarator);
+
+		name = init_decl.next[0].next[0].data.clone().or_err("declaration has no name");
+
+		if init_decl.next.len() == 2 {
+			place = walk_assignment_expression(&init_decl.next[1].next[0], ir, scope);
+			scope_assign(scope, name, place);
+		}
+		else {
+			scope_insert(scope, name);
+		}
 	}
 }
 
@@ -221,10 +284,53 @@ fn walk_unlabeled_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 
 	for next in &ast.next {
 		match next.ty {
+			Type::ExpressionStatement => walk_expression_statement(next, ir, scope),
+			Type::PrimaryBlock => walk_primary_block(next, ir, scope),
 			Type::JumpStatement => walk_jump_statement(next, ir, scope),
 			otherwise => error(format!("unexpected statement type: {otherwise:?}")),
 		}
 	}
+}
+
+fn walk_expression_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
+{
+	for expr in &ast.next {
+		expect(expr, Type::Expression);
+
+		walk_expression(expr, ir, scope);
+	}
+}
+
+fn walk_primary_block(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
+{
+	let next = &ast.next[0];
+
+	match next.ty {
+		Type::CompoundStatement => walk_compound_statement(next, ir, scope),
+		Type::SelectionStatement => walk_selection_statement(next, ir, scope),
+		Type::IterationStatement => walk_iteration_statement(next, ir, scope),
+		otherwise => error(format!("unexpected primary block type: {otherwise:?}")),
+	}
+}
+
+fn walk_selection_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
+{
+	let cond = walk_expression(&ast.next[0], ir, scope);
+	let mut body = Vec::new();
+
+	walk_unlabeled_statement(&ast.next[1], &mut body, scope);
+
+	ir.push(Node::If { cond, body });
+}
+
+fn walk_iteration_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
+{
+	let cond = walk_expression(&ast.next[0], ir, scope);
+	let mut body = Vec::new();
+
+	walk_unlabeled_statement(&ast.next[1], &mut body, scope);
+
+	ir.push(Node::While { cond, body });
 }
 
 fn walk_jump_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
@@ -245,9 +351,29 @@ fn walk_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
 
 fn walk_assignment_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
 {
+	let lhs;
+	let rhs;
+	let node;
+
 	expect(ast, Type::AssignmentExpression);
 
-	walk_conditional_expression(&ast.next[0], ir, scope)
+	if ast.next.len() == 1 {
+		return walk_conditional_expression(&ast.next[0], ir, scope);
+	}
+
+	lhs = walk_unary_expression(&ast.next[0], ir, scope);
+	rhs = walk_assignment_expression(&ast.next[1], ir, scope);
+
+	node = match ast.data.as_deref() {
+		Some("=") => Node::Assign { lhs, rhs },
+		Some("-=") => Node::Sub { x: lhs, y: rhs, ret: lhs },
+		Some(otherwise) => error(format!("unexpected assignment data: {otherwise:?}")),
+		None => error("assignment expression data not set"),
+	};
+
+	ir.push(node);
+
+	lhs
 }
 
 fn walk_conditional_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
@@ -301,9 +427,35 @@ fn walk_equality_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) ->
 
 fn walk_relational_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32
 {
+	let x;
+	let y;
+	let ret;
+	let op;
+
 	expect(ast, Type::RelationalExpression);
 
-	walk_shift_expression(&ast.next[0], ir, scope)
+	x = walk_shift_expression(&ast.next[0], ir, scope);
+
+	if ast.next.len() == 1 {
+		return x;
+	}
+
+	y = walk_shift_expression(&ast.next[1], ir, scope);
+
+	ret = scope_allocate(scope);
+
+	op = match ast.data.as_deref() {
+		Some("<") => Cmp::LT,
+		Some(">") => Cmp::GT,
+		Some("<=") => Cmp::LTE,
+		Some(">=") => Cmp::GTE,
+		Some(otherwise) => error(format!("unexpected relational data: {otherwise:?}")),
+		None => error("relational expression's data not set"),
+	};
+
+	ir.push(Node::Compare { op, x, y, ret });
+
+	ret
 }
 
 fn walk_shift_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) -> u32

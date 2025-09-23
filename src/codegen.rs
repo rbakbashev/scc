@@ -157,6 +157,7 @@ fn gen_node(node: &ir::Node, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
 		ir::Node::FuncCall { name, args, ret } => gen_fn_call(name, args, *ret, map, inst),
 		ir::Node::Constant { value, place } => gen_const(*value, *place, map, inst),
 		ir::Node::Return { place } => gen_return(*place, map, inst),
+		_ => todo!(),
 	}
 }
 
@@ -197,12 +198,12 @@ fn gen_return(place: u32, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
 
 fn gen_fn_call(name: &str, args: &[u32], ret: u32, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
 {
-	let assignemnts = assign_args(args.len());
+	let assignments = assign_args(args.len());
 	let mut place_assignment;
 	let ret = placemap_get(map, ret);
 	let name = name.to_string();
 
-	for (&place, assignment) in args.iter().zip(assignemnts) {
+	for (&place, assignment) in args.iter().zip(assignments) {
 		place_assignment = placemap_get(map, place);
 
 		inst.push(Instruction::Move { to: assignment, from: place_assignment });
