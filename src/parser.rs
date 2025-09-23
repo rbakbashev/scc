@@ -68,13 +68,6 @@ fn ast_node(read: &TokenReader, ty: Type) -> AST
 	AST { ty, next: Vec::new(), data: None }
 }
 
-fn ast_with_data(read: &TokenReader, ty: Type, data: String) -> AST
-{
-	reader_dbg(read, ty);
-
-	AST { ty, next: Vec::new(), data: Some(data) }
-}
-
 fn reader_curr<'f>(read: &TokenReader<'f>) -> &'f Token
 {
 	&read.tokens[read.idx]
@@ -352,13 +345,14 @@ fn declaration_specifiers(read: &mut TokenReader) -> Option<AST>
 
 fn type_specifier(read: &mut TokenReader) -> Option<AST>
 {
+	let mut node = ast_node(read, TypeSpecifier);
 	let keywords =
 		["void", "char", "short", "int", "long", "float", "double", "signed", "unsigned"];
 
 	if let Some(keyword) = match_keyword(read, &keywords) {
 		reader_advance(read);
-
-		return Some(ast_with_data(read, TypeSpecifier, keyword));
+		node.data = Some(keyword);
+		return Some(node);
 	}
 
 	None
@@ -405,12 +399,13 @@ fn function_declarator(read: &mut TokenReader) -> Option<AST>
 
 fn identifier(read: &mut TokenReader) -> Option<AST>
 {
+	let mut node = ast_node(read, Identifier);
 	let (ty, text) = reader_data(read);
 
 	if ty == TokenType::Identifier {
 		reader_advance(read);
-
-		return Some(ast_with_data(read, Identifier, text.to_string()));
+		node.data = Some(text.to_string());
+		return Some(node);
 	}
 
 	None
@@ -418,12 +413,13 @@ fn identifier(read: &mut TokenReader) -> Option<AST>
 
 fn constant(read: &mut TokenReader) -> Option<AST>
 {
+	let mut node = ast_node(read, Constant);
 	let (ty, text) = reader_data(read);
 
 	if ty == TokenType::Integer {
 		reader_advance(read);
-
-		return Some(ast_with_data(read, Constant, text.to_string()));
+		node.data = Some(text.to_string());
+		return Some(node);
 	}
 
 	None
