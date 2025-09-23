@@ -3,3 +3,4 @@ Cargo.lock
 *.s
 *.o
 add
+fib
