@@ -44,6 +44,10 @@ fn process_arg(arg: String, options: &[Opt], iter: &mut ArgsIterator, args: &mut
 	}
 
 	if arg.starts_with('-') {
+		if matches_merged_options(&arg, options, args) {
+			return;
+		}
+
 		error(format!("unrecognized option '{arg}'"));
 	}
 
@@ -65,6 +69,44 @@ fn match_option(arg: &str, option: &Opt, iter: &mut ArgsIterator, args: &mut Arg
 	}
 
 	true
+}
+
+fn matches_merged_options(arg: &str, options: &[Opt], args: &mut Args) -> bool
+{
+	if arg.starts_with("--") || arg.len() == 2 || arg == "-" {
+		return false;
+	}
+
+	for ch in arg.chars().skip(1) {
+		if !matches_short_opts(ch, options, args) {
+			error(format!("unrecognized short option {ch:?} in merged option {arg:?}"));
+		}
+	}
+
+	true
+}
+
+fn matches_short_opts(ch: char, options: &[Opt], args: &mut Args) -> bool
+{
+	let mut short;
+
+	for option in options {
+		short = opt_short(option);
+
+		if short != ch {
+			continue;
+		}
+
+		if matches!(option, Opt::Value { .. }) {
+			error(format!("merged option {} requires an argument", opt_usage(option)));
+		}
+
+		args.spec.entry(short).or_default();
+
+		return true;
+	}
+
+	false
 }
 
 fn opt_matches(option: &Opt, arg: &str) -> bool
