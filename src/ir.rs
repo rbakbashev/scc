@@ -20,7 +20,7 @@ pub enum Node
 	Compare { op: Cmp, x: u32, y: u32, ret: u32 },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Cmp
 {
 	LT,

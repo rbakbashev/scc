@@ -67,6 +67,7 @@ fn write_asm_instr(instr: &Instruction, out: &mut String)
 		Instruction::FuncCall { name } => {
 			writeln!(out, "\tcall {name}");
 		}
+		_ => todo!(),
 	}
 }
 
@@ -122,6 +123,7 @@ fn write_code_instr(instr: &Instruction, addresses: &mut HashMap<String, usize>,
 			address = addresses.get(name).try_to(format!("find function {name:?}"));
 			write_fn_call(*address, out);
 		}
+		_ => todo!(),
 	}
 }
 
