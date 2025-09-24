@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::{self, Display};
 
 use crate::args::ARGS;
-use crate::ir;
+use crate::ir::{Node, format_node_type};
 use crate::utils::error;
 
 #[derive(Debug)]
@@ -103,7 +103,7 @@ fn placemap_get(map: &mut PlaceMap, place: u32) -> Assignment
 	}
 }
 
-pub fn gen_instructions(ir: &[ir::Node]) -> Vec<Instruction>
+pub fn gen_instructions(ir: &[Node]) -> Vec<Instruction>
 {
 	let mut out = Vec::new();
 
@@ -119,20 +119,17 @@ pub fn gen_instructions(ir: &[ir::Node]) -> Vec<Instruction>
 	out
 }
 
-fn gen_toplevel(node: &ir::Node, inst: &mut Vec<Instruction>)
+fn gen_toplevel(node: &Node, inst: &mut Vec<Instruction>)
 {
-	let ty;
-
-	if let ir::Node::FuncDef { name, params, body } = node {
+	if let Node::FuncDef { name, params, body } = node {
 		gen_fn_def(name, params, body, inst);
 	}
 	else {
-		ty = ir::format_node_type(node);
-		error(format!("unexpected top-level IR node: {ty}"));
+		error(format!("unexpected top-level IR node: {}", format_node_type(node)));
 	}
 }
 
-fn gen_fn_def(name: &str, params: &[u32], body: &[ir::Node], inst: &mut Vec<Instruction>)
+fn gen_fn_def(name: &str, params: &[u32], body: &[Node], inst: &mut Vec<Instruction>)
 {
 	let name = name.to_string();
 	let mut map = placemap_new();
@@ -148,15 +145,15 @@ fn gen_fn_def(name: &str, params: &[u32], body: &[ir::Node], inst: &mut Vec<Inst
 	inst.append(&mut fn_inst);
 }
 
-fn gen_node(node: &ir::Node, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
+fn gen_node(node: &Node, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
 {
 	match node {
-		ir::Node::FuncDef { .. } => error("nested functions are not supported"),
-		ir::Node::Add { x, y, ret } => gen_add(*x, *y, *ret, map, inst),
-		ir::Node::Sub { x, y, ret } => gen_sub(*x, *y, *ret, map, inst),
-		ir::Node::FuncCall { name, args, ret } => gen_fn_call(name, args, *ret, map, inst),
-		ir::Node::Constant { value, place } => gen_const(*value, *place, map, inst),
-		ir::Node::Return { place } => gen_return(*place, map, inst),
+		Node::FuncDef { .. } => error("nested functions are not supported"),
+		Node::Add { x, y, ret } => gen_add(*x, *y, *ret, map, inst),
+		Node::Sub { x, y, ret } => gen_sub(*x, *y, *ret, map, inst),
+		Node::FuncCall { name, args, ret } => gen_fn_call(name, args, *ret, map, inst),
+		Node::Constant { value, place } => gen_const(*value, *place, map, inst),
+		Node::Return { place } => gen_return(*place, map, inst),
 		_ => todo!(),
 	}
 }
