@@ -13,6 +13,7 @@ pub enum Node
 	Constant { value: i32, place: u32 },
 	Return { place: u32 },
 	If { cond: u32, body: Vec<Node> },
+	IfNot { cond: u32, body: Vec<Node> },
 	Loop { body: Vec<Node> },
 	Break,
 	Assign { lhs: u32, rhs: u32 },
@@ -97,6 +98,10 @@ fn print_node(node: &Node, level: usize)
 			println!("${cond}");
 			print_nodes(body, level + 1);
 		}
+		Node::IfNot { cond, body } => {
+			println!("${cond}");
+			print_nodes(body, level + 1);
+		}
 		Node::Loop { body } => {
 			println!();
 			print_nodes(body, level + 1);
@@ -116,6 +121,7 @@ pub fn format_node_type(node: &Node) -> &str
 		Node::Constant { .. } => "CONST",
 		Node::Return { .. } => "RET",
 		Node::If { .. } => "IF",
+		Node::IfNot { .. } => "IFNOT",
 		Node::Loop { .. } => "LOOP",
 		Node::Break => "BREAK",
 		Node::Assign { .. } => "ASSIGN",
@@ -369,7 +375,7 @@ fn walk_iteration_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 
 	cond = walk_expression(&ast.next[0], &mut body, scope);
 
-	body.push(Node::If { cond, body: vec![Node::Break] });
+	body.push(Node::IfNot { cond, body: vec![Node::Break] });
 
 	walk_unlabeled_statement(&ast.next[1], &mut body, scope);
 

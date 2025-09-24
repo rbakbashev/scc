@@ -97,7 +97,8 @@ fn cond_instr(cond: Cond) -> &'static str
 		Cond::GT => "jg",
 		Cond::LTE => "jle",
 		Cond::GTE => "jge",
-		Cond::NonZero => "jz",
+		Cond::NonZero => "jnz",
+		Cond::Zero => "jz",
 	}
 }
 

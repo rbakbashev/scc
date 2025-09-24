@@ -44,6 +44,7 @@ pub enum Cond
 	LTE,
 	GTE,
 	NonZero,
+	Zero,
 }
 
 struct PlaceMap
@@ -204,7 +205,8 @@ fn gen_node(node: &Node, st: &mut State, inst: &mut Vec<Instruction>)
 		Node::FuncCall { name, args, ret } => gen_fn_call(name, args, *ret, st, inst),
 		Node::Constant { value, place } => gen_const(*value, *place, st, inst),
 		Node::Return { place } => gen_return(*place, st, inst),
-		Node::If { cond, body } => gen_if(*cond, body, st, inst),
+		Node::If { cond, body } => gen_if(true, *cond, body, st, inst),
+		Node::IfNot { cond, body } => gen_if(false, *cond, body, st, inst),
 		Node::Loop { body } => gen_loop(body, st, inst),
 		Node::Break => gen_break(st, inst),
 		Node::Assign { lhs, rhs } => gen_assign(*lhs, *rhs, st, inst),
@@ -268,15 +270,16 @@ fn gen_fn_call(name: &str, args: &[u32], ret: u32, st: &mut State, inst: &mut Ve
 	inst.push(Instruction::Move { to: ret, from: EAX });
 }
 
-fn gen_if(cond: u32, body: &[Node], st: &mut State, inst: &mut Vec<Instruction>)
+fn gen_if(truthful: bool, cond: u32, body: &[Node], st: &mut State, inst: &mut Vec<Instruction>)
 {
 	let cond = assign_place(st, cond);
 	let lbl_out = state_alloc_label(st);
 	let mut body_inst = Vec::new();
+	let jump_cond = if truthful { Cond::NonZero } else { Cond::Zero };
 
 	inst.push(Instruction::Move { to: EAX, from: cond });
 	inst.push(Instruction::TestForOne { x: EAX });
-	inst.push(Instruction::JumpCond { cond: Cond::NonZero, label: lbl_out });
+	inst.push(Instruction::JumpCond { cond: jump_cond, label: lbl_out });
 
 	for node in body {
 		gen_node(node, st, &mut body_inst);
