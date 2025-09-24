@@ -26,13 +26,11 @@ pub enum Instruction
 pub enum Assignment
 {
 	EAX,
-	_EBX,
+	EBX,
 	ECX,
 	EDX,
 	ESI,
 	EDI,
-	_EBP,
-	_ESP,
 	Stack(i32),
 }
 
@@ -219,9 +217,23 @@ fn gen_arith(op: ArithOp, x: u32, y: u32, ret: u32, st: &mut State, inst: &mut V
 	let x = assign_place(st, x);
 	let y = assign_place(st, y);
 	let ret = assign_place(st, ret);
+	let dst;
+	let src;
 
-	inst.push(Instruction::Move { to: ret, from: x });
-	inst.push(Instruction::Arith { op, dst: ret, src: y });
+	gen_move(ret, x, inst);
+
+	dst = ret;
+	src = y;
+
+	match (dst, src) {
+		(Stack(_), Stack(_)) => {
+			inst.push(Instruction::Move { to: EBX, from: src });
+			inst.push(Instruction::Arith { op, dst, src: EBX });
+		}
+		_ => {
+			inst.push(Instruction::Arith { op, dst, src });
+		}
+	}
 }
 
 fn gen_const(value: i32, place: u32, st: &mut State, inst: &mut Vec<Instruction>)
@@ -306,7 +318,7 @@ fn gen_assign(lhs: u32, rhs: u32, st: &mut State, inst: &mut Vec<Instruction>)
 	let lhs = assign_place(st, lhs);
 	let rhs = assign_place(st, rhs);
 
-	inst.push(Instruction::Move { to: lhs, from: rhs });
+	gen_move(lhs, rhs, inst);
 }
 
 fn gen_compare(op: Cmp, x: u32, y: u32, ret: u32, st: &mut State, inst: &mut Vec<Instruction>)
@@ -325,4 +337,17 @@ fn gen_compare(op: Cmp, x: u32, y: u32, ret: u32, st: &mut State, inst: &mut Vec
 	inst.push(Instruction::Label { name: lbl_true });
 	inst.push(Instruction::MoveImm { dst: ret, value: 1 });
 	inst.push(Instruction::Label { name: lbl_cont });
+}
+
+fn gen_move(to: Assignment, from: Assignment, inst: &mut Vec<Instruction>)
+{
+	match (to, from) {
+		(Stack(_), Stack(_)) => {
+			inst.push(Instruction::Move { to: EBX, from });
+			inst.push(Instruction::Move { to, from: EBX });
+		}
+		_ => {
+			inst.push(Instruction::Move { to, from });
+		}
+	}
 }
