@@ -15,11 +15,11 @@ pub enum Instruction
 	Arith { op: ArithOp, dst: Assignment, src: Assignment },
 	Return,
 	FuncCall { name: String },
-	TestForOne { x: Assignment },
 	JumpCond { cond: Cond, label: u16 },
 	Jump { label: u16 },
 	Label { name: u16 },
-	Compare { x: Assignment, y: Assignment, },
+	Compare { x: Assignment, y: Assignment },
+	CompareImm { x: Assignment, value: i32 },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -43,8 +43,8 @@ pub enum Cond
 	GT,
 	LTE,
 	GTE,
-	NonZero,
-	Zero,
+	NotEqual,
+	Equal,
 }
 
 struct PlaceMap
@@ -275,10 +275,9 @@ fn gen_if(truthful: bool, cond: u32, body: &[Node], st: &mut State, inst: &mut V
 	let cond = assign_place(st, cond);
 	let lbl_out = state_alloc_label(st);
 	let mut body_inst = Vec::new();
-	let jump_cond = if truthful { Cond::NonZero } else { Cond::Zero };
+	let jump_cond = if truthful { Cond::NotEqual } else { Cond::Equal };
 
-	inst.push(Instruction::Move { to: EAX, from: cond });
-	inst.push(Instruction::TestForOne { x: EAX });
+	inst.push(Instruction::CompareImm { x: cond, value: 1 });
 	inst.push(Instruction::JumpCond { cond: jump_cond, label: lbl_out });
 
 	for node in body {

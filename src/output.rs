@@ -64,9 +64,6 @@ fn write_asm_instr(instr: &Instruction, out: &mut String)
 		Instruction::FuncCall { name } => {
 			writeln!(out, "\tcall {name}");
 		}
-		Instruction::TestForOne { x } => {
-			writeln!(out, "\ttest {x}, 1");
-		}
 		Instruction::JumpCond { cond, label } => {
 			writeln!(out, "\t{} .L{label}", cond_instr(*cond));
 		}
@@ -78,6 +75,9 @@ fn write_asm_instr(instr: &Instruction, out: &mut String)
 		}
 		Instruction::Compare { x, y } => {
 			writeln!(out, "\tcmp {x}, {y}");
+		}
+		Instruction::CompareImm { x, value } => {
+			writeln!(out, "\tcmp dword {x}, {value}");
 		}
 	}
 }
@@ -97,8 +97,8 @@ fn cond_instr(cond: Cond) -> &'static str
 		Cond::GT => "jg",
 		Cond::LTE => "jle",
 		Cond::GTE => "jge",
-		Cond::NonZero => "jnz",
-		Cond::Zero => "jz",
+		Cond::NotEqual => "jne",
+		Cond::Equal => "je",
 	}
 }
 
