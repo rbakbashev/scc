@@ -14,7 +14,8 @@ pub enum Node
 	Constant { value: i32, place: u32 },
 	Return { place: u32 },
 	If { cond: u32, body: Vec<Node> },
-	While { cond: u32, body: Vec<Node> },
+	Loop { body: Vec<Node> },
+	Break,
 	Assign { lhs: u32, rhs: u32 },
 	Compare { op: Cmp, x: u32, y: u32, ret: u32 },
 }
@@ -89,10 +90,11 @@ fn print_node(node: &Node, level: usize)
 			println!("${cond}");
 			print_nodes(body, level + 1);
 		}
-		Node::While { cond, body } => {
-			println!("${cond}");
+		Node::Loop { body } => {
+			println!();
 			print_nodes(body, level + 1);
 		}
+		Node::Break => println!(),
 		Node::Assign { lhs, rhs } => println!("${lhs} = ${rhs}"),
 		Node::Compare { op, x, y, ret } => println!("${x} {op:?} ${y} -> ${ret}"),
 	}
@@ -108,7 +110,8 @@ pub fn format_node_type(node: &Node) -> &str
 		Node::Constant { .. } => "CONST",
 		Node::Return { .. } => "RET",
 		Node::If { .. } => "IF",
-		Node::While { .. } => "WHILE",
+		Node::Loop { .. } => "LOOP",
+		Node::Break => "BREAK",
 		Node::Assign { .. } => "ASSIGN",
 		Node::Compare { .. } => "CMP",
 	}
@@ -347,12 +350,16 @@ fn walk_selection_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 
 fn walk_iteration_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 {
-	let cond = walk_expression(&ast.next[0], ir, scope);
+	let cond;
 	let mut body = Vec::new();
+
+	cond = walk_expression(&ast.next[0], &mut body, scope);
+
+	body.push(Node::If { cond, body: vec![Node::Break] });
 
 	walk_unlabeled_statement(&ast.next[1], &mut body, scope);
 
-	ir.push(Node::While { cond, body });
+	ir.push(Node::Loop { body });
 }
 
 fn walk_jump_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
