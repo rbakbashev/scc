@@ -6,6 +6,7 @@ use std::fmt::Write;
 use crate::args::ARGS;
 use crate::codegen::{Assignment, Cond, Instruction};
 use crate::elf::construct_elf;
+use crate::ir::{ArithOp, format_arith};
 use crate::utils::{CheckError, error};
 
 pub fn construct_file(code: &[Instruction]) -> Vec<u8>
@@ -53,11 +54,8 @@ fn write_asm_instr(instr: &Instruction, out: &mut String)
 		Instruction::MoveImm { dst, value } => {
 			writeln!(out, "\tmov dword {dst}, {value}");
 		}
-		Instruction::Add { dst, src } => {
-			writeln!(out, "\tadd {dst}, {src}");
-		}
-		Instruction::Sub { dst, src } => {
-			writeln!(out, "\tsub {dst}, {src}");
+		Instruction::Arith { op, dst, src } => {
+			writeln!(out, "\t{} {dst}, {src}", arith_instr(*op));
 		}
 		Instruction::Return => {
 			writeln!(out, "\tleave");
@@ -70,7 +68,7 @@ fn write_asm_instr(instr: &Instruction, out: &mut String)
 			writeln!(out, "\ttest {x}, 1");
 		}
 		Instruction::JumpCond { cond, label } => {
-			writeln!(out, "\t{} .L{label}", cond_instr(cond));
+			writeln!(out, "\t{} .L{label}", cond_instr(*cond));
 		}
 		Instruction::Jump { label } => {
 			writeln!(out, "\tjmp .L{label}");
@@ -84,7 +82,15 @@ fn write_asm_instr(instr: &Instruction, out: &mut String)
 	}
 }
 
-fn cond_instr(cond: &Cond) -> &'static str
+fn arith_instr(op: ArithOp) -> &'static str
+{
+	match op {
+		ArithOp::Add => "add",
+		ArithOp::Sub => "sub",
+	}
+}
+
+fn cond_instr(cond: Cond) -> &'static str
 {
 	match cond {
 		Cond::LT => "jl",
@@ -141,8 +147,7 @@ fn write_code_instr(instr: &Instruction, addresses: &mut HashMap<String, usize>,
 		}
 		Instruction::Move { to, from } => write_move(*to, *from, out),
 		Instruction::MoveImm { dst, value } => write_move_imm(*dst, *value, out),
-		Instruction::Add { dst, src } => write_add(*dst, *src, out),
-		Instruction::Sub { dst, src } => write_sub(*dst, *src, out),
+		Instruction::Arith { op, dst, src } => write_arith(*op, *dst, *src, out),
 		Instruction::Return => write_return(out),
 		Instruction::FuncCall { name } => {
 			address = addresses.get(name).try_to(format!("find function {name:?}"));
@@ -249,30 +254,29 @@ fn write_move_imm(dst: Assignment, value: i32, out: &mut Vec<u8>)
 	}
 }
 
-fn write_add(dst: Assignment, src: Assignment, out: &mut Vec<u8>)
+fn write_arith(op: ArithOp, dst: Assignment, src: Assignment, out: &mut Vec<u8>)
 {
+	let fmt;
+
 	match (dst, src) {
 		(Assignment::Stack(_), Assignment::Stack(_)) =>
-			error("additions from memory to memory are invalid"),
-		(Assignment::Stack(offset), src) => {
-			out.push(0x01);
-			modrm(offset, src, out);
+			error("arithmetic operations from memory to memory are invalid"),
+		(Assignment::Stack(offset), src) => write_arith_stack_reg(op, offset, src, out),
+		_ => {
+			fmt = format_arith(op);
+			error(format!("unexpected arithmetic case: {dst:?} {fmt}= {src:?}"));
 		}
-		_ => error(format!("unexpected addition case: {dst:?} += {src:?}")),
 	}
 }
 
-fn write_sub(dst: Assignment, src: Assignment, out: &mut Vec<u8>)
+fn write_arith_stack_reg(op: ArithOp, offset: i32, src: Assignment, out: &mut Vec<u8>)
 {
-	match (dst, src) {
-		(Assignment::Stack(_), Assignment::Stack(_)) =>
-			error("subtractions from memory to memory are invalid"),
-		(Assignment::Stack(offset), src) => {
-			out.push(0x29);
-			modrm(offset, src, out);
-		}
-		_ => error(format!("unexpected subtraction case: {dst:?} += {src:?}")),
+	match op {
+		ArithOp::Add => out.push(0x01),
+		ArithOp::Sub => out.push(0x29),
 	}
+
+	modrm(offset, src, out);
 }
 
 fn write_return(out: &mut Vec<u8>)

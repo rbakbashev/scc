@@ -8,8 +8,7 @@ use crate::utils::{CheckError, error};
 pub enum Node
 {
 	FuncDef { name: String, params: Vec<u32>, body: Vec<Node> },
-	Add { x: u32, y: u32, ret: u32 },
-	Sub { x: u32, y: u32, ret: u32 },
+	Arith { op: ArithOp, x: u32, y: u32, ret: u32 },
 	FuncCall { name: String, args: Vec<u32>, ret: u32 },
 	Constant { value: i32, place: u32 },
 	Return { place: u32 },
@@ -18,6 +17,13 @@ pub enum Node
 	Break,
 	Assign { lhs: u32, rhs: u32 },
 	Compare { op: Cmp, x: u32, y: u32, ret: u32 },
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum ArithOp
+{
+	Add,
+	Sub,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -80,8 +86,9 @@ fn print_node(node: &Node, level: usize)
 			println!("{name} {}", format_places(params));
 			print_nodes(body, level + 1);
 		}
-		Node::Add { x, y, ret } => println!("${x} ${y} -> ${ret}"),
-		Node::Sub { x, y, ret } => println!("${x} ${y} -> ${ret}"),
+		Node::Arith { op, x, y, ret } => {
+			println!("${x} {} ${y} -> ${ret}", format_arith(*op));
+		}
 		Node::FuncCall { name, args, ret } =>
 			println!("{name} {} -> ${ret}", format_places(args)),
 		Node::Constant { value, place } => println!("{value} -> ${place}"),
@@ -104,8 +111,7 @@ pub fn format_node_type(node: &Node) -> &str
 {
 	match node {
 		Node::FuncDef { .. } => "FNDEF",
-		Node::Add { .. } => "ADD",
-		Node::Sub { .. } => "SUB",
+		Node::Arith { .. } => "ARITH",
 		Node::FuncCall { .. } => "FNCALL",
 		Node::Constant { .. } => "CONST",
 		Node::Return { .. } => "RET",
@@ -133,6 +139,14 @@ fn format_places(places: &[u32]) -> String
 	out += ")";
 
 	out
+}
+
+pub fn format_arith(op: ArithOp) -> &'static str
+{
+	match op {
+		ArithOp::Add => "+",
+		ArithOp::Sub => "-",
+	}
 }
 
 fn expect(ast: &AST, expected: Type)
@@ -395,7 +409,7 @@ fn walk_assignment_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) 
 
 	node = match ast.data.as_deref() {
 		Some("=") => Node::Assign { lhs, rhs },
-		Some("-=") => Node::Sub { x: lhs, y: rhs, ret: lhs },
+		Some("-=") => Node::Arith { op: ArithOp::Sub, x: lhs, y: rhs, ret: lhs },
 		Some(otherwise) => error(format!("unexpected assignment data: {otherwise:?}")),
 		None => error("assignment expression data not set"),
 	};
@@ -514,8 +528,8 @@ fn walk_additive_expression(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope) ->
 	ret = scope_allocate(scope);
 
 	node = match ast.data.as_deref() {
-		Some("+") => Node::Add { x, y, ret },
-		Some("-") => Node::Sub { x, y, ret },
+		Some("+") => Node::Arith { op: ArithOp::Add, x, y, ret },
+		Some("-") => Node::Arith { op: ArithOp::Sub, x, y, ret },
 		Some(otherwise) => error(format!("unexpected additive data: {otherwise:?}")),
 		None => error("additive expression's data not set"),
 	};

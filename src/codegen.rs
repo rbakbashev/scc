@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::{self, Display};
 
 use crate::args::ARGS;
-use crate::ir::{Cmp, Node, format_node_type};
+use crate::ir::{ArithOp, Cmp, Node, format_node_type};
 use crate::utils::{CheckError, error};
 
 #[derive(Debug)]
@@ -12,8 +12,7 @@ pub enum Instruction
 	FuncPrologue { name: String, stack_used: i32 },
 	Move { to: Assignment, from: Assignment },
 	MoveImm { dst: Assignment, value: i32 },
-	Add { dst: Assignment, src: Assignment },
-	Sub { dst: Assignment, src: Assignment },
+	Arith { op: ArithOp, dst: Assignment, src: Assignment },
 	Return,
 	FuncCall { name: String },
 	TestForOne { x: Assignment },
@@ -39,7 +38,7 @@ pub enum Assignment
 
 use Assignment::*;
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Cond
 {
 	LT,
@@ -203,8 +202,7 @@ fn gen_node(node: &Node, st: &mut State, inst: &mut Vec<Instruction>)
 {
 	match node {
 		Node::FuncDef { .. } => error("nested functions are not supported"),
-		Node::Add { x, y, ret } => gen_add(*x, *y, *ret, st, inst),
-		Node::Sub { x, y, ret } => gen_sub(*x, *y, *ret, st, inst),
+		Node::Arith { op, x, y, ret } => gen_arith(*op, *x, *y, *ret, st, inst),
 		Node::FuncCall { name, args, ret } => gen_fn_call(name, args, *ret, st, inst),
 		Node::Constant { value, place } => gen_const(*value, *place, st, inst),
 		Node::Return { place } => gen_return(*place, st, inst),
@@ -216,24 +214,14 @@ fn gen_node(node: &Node, st: &mut State, inst: &mut Vec<Instruction>)
 	}
 }
 
-fn gen_add(x: u32, y: u32, ret: u32, st: &mut State, inst: &mut Vec<Instruction>)
+fn gen_arith(op: ArithOp, x: u32, y: u32, ret: u32, st: &mut State, inst: &mut Vec<Instruction>)
 {
 	let x = assign_place(st, x);
 	let y = assign_place(st, y);
 	let ret = assign_place(st, ret);
 
 	inst.push(Instruction::Move { to: ret, from: x });
-	inst.push(Instruction::Add { dst: ret, src: y });
-}
-
-fn gen_sub(x: u32, y: u32, ret: u32, st: &mut State, inst: &mut Vec<Instruction>)
-{
-	let x = assign_place(st, x);
-	let y = assign_place(st, y);
-	let ret = assign_place(st, ret);
-
-	inst.push(Instruction::Move { to: ret, from: x });
-	inst.push(Instruction::Sub { dst: ret, src: y });
+	inst.push(Instruction::Arith { op, dst: ret, src: y });
 }
 
 fn gen_const(value: i32, place: u32, st: &mut State, inst: &mut Vec<Instruction>)
