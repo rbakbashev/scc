@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt::Write;
 
 use crate::args::ARGS;
-use crate::codegen::{Assignment, Instruction};
+use crate::codegen::{Assignment, Cond, Instruction};
 use crate::elf::construct_elf;
 use crate::utils::{CheckError, error};
 
@@ -35,13 +35,13 @@ fn construct_assembly(code: &[Instruction]) -> Vec<u8>
 fn write_asm_prologue(out: &mut String)
 {
 	writeln!(out, "section .text");
-	writeln!(out);
 }
 
 fn write_asm_instr(instr: &Instruction, out: &mut String)
 {
 	match instr {
 		Instruction::FuncPrologue { name, stack_used } => {
+			writeln!(out);
 			writeln!(out, "{name}:");
 			writeln!(out, "\tpush rbp");
 			writeln!(out, "\tmov rbp, rsp");
@@ -62,17 +62,42 @@ fn write_asm_instr(instr: &Instruction, out: &mut String)
 		Instruction::Return => {
 			writeln!(out, "\tleave");
 			writeln!(out, "\tret");
-			writeln!(out);
 		}
 		Instruction::FuncCall { name } => {
 			writeln!(out, "\tcall {name}");
 		}
-		_ => todo!(),
+		Instruction::TestForOne { x } => {
+			writeln!(out, "\ttest {x}, 1");
+		}
+		Instruction::JumpCond { cond, label } => {
+			writeln!(out, "\t{} .L{label}", cond_instr(cond));
+		}
+		Instruction::Jump { label } => {
+			writeln!(out, "\tjmp .L{label}");
+		}
+		Instruction::Label { name } => {
+			writeln!(out, ".L{name}:");
+		}
+		Instruction::Compare { x, y } => {
+			writeln!(out, "\tcmp {x}, {y}");
+		}
+	}
+}
+
+fn cond_instr(cond: &Cond) -> &'static str
+{
+	match cond {
+		Cond::LT => "jl",
+		Cond::GT => "jg",
+		Cond::LTE => "jle",
+		Cond::GTE => "jge",
+		Cond::NonZero => "jz",
 	}
 }
 
 fn write_asm_epilogue(out: &mut String)
 {
+	writeln!(out);
 	writeln!(out, "global _start");
 	writeln!(out, "_start:");
 	writeln!(out, "\tcall main");
