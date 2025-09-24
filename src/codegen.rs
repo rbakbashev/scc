@@ -40,6 +40,11 @@ struct PlaceMap
 	stack_used: i32,
 }
 
+struct State
+{
+	map: PlaceMap,
+}
+
 static CALL_CONV: &[Assignment] = &[EDI, ESI, EDX, ECX];
 
 impl Display for Assignment
@@ -103,6 +108,11 @@ fn placemap_get(map: &mut PlaceMap, place: u32) -> Assignment
 	}
 }
 
+fn assign_place(st: &mut State, place: u32) -> Assignment
+{
+	placemap_get(&mut st.map, place)
+}
+
 pub fn gen_instructions(ir: &[Node]) -> Vec<Instruction>
 {
 	let mut out = Vec::new();
@@ -132,76 +142,76 @@ fn gen_toplevel(node: &Node, inst: &mut Vec<Instruction>)
 fn gen_fn_def(name: &str, params: &[u32], body: &[Node], inst: &mut Vec<Instruction>)
 {
 	let name = name.to_string();
-	let mut map = placemap_new();
+	let mut state = State { map: placemap_new() };
 	let mut fn_inst = Vec::new();
 
-	placemap_assign_args(&mut map, params);
+	placemap_assign_args(&mut state.map, params);
 
 	for node in body {
-		gen_node(node, &mut map, &mut fn_inst);
+		gen_node(node, &mut state, &mut fn_inst);
 	}
 
-	inst.push(Instruction::FuncPrologue { name, stack_used: map.stack_used });
+	inst.push(Instruction::FuncPrologue { name, stack_used: state.map.stack_used });
 	inst.append(&mut fn_inst);
 }
 
-fn gen_node(node: &Node, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
+fn gen_node(node: &Node, st: &mut State, inst: &mut Vec<Instruction>)
 {
 	match node {
 		Node::FuncDef { .. } => error("nested functions are not supported"),
-		Node::Add { x, y, ret } => gen_add(*x, *y, *ret, map, inst),
-		Node::Sub { x, y, ret } => gen_sub(*x, *y, *ret, map, inst),
-		Node::FuncCall { name, args, ret } => gen_fn_call(name, args, *ret, map, inst),
-		Node::Constant { value, place } => gen_const(*value, *place, map, inst),
-		Node::Return { place } => gen_return(*place, map, inst),
+		Node::Add { x, y, ret } => gen_add(*x, *y, *ret, st, inst),
+		Node::Sub { x, y, ret } => gen_sub(*x, *y, *ret, st, inst),
+		Node::FuncCall { name, args, ret } => gen_fn_call(name, args, *ret, st, inst),
+		Node::Constant { value, place } => gen_const(*value, *place, st, inst),
+		Node::Return { place } => gen_return(*place, st, inst),
 		_ => todo!(),
 	}
 }
 
-fn gen_add(x: u32, y: u32, ret: u32, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
+fn gen_add(x: u32, y: u32, ret: u32, st: &mut State, inst: &mut Vec<Instruction>)
 {
-	let x = placemap_get(map, x);
-	let y = placemap_get(map, y);
-	let ret = placemap_get(map, ret);
+	let x = assign_place(st, x);
+	let y = assign_place(st, y);
+	let ret = assign_place(st, ret);
 
 	inst.push(Instruction::Move { to: ret, from: x });
 	inst.push(Instruction::Add { dst: ret, src: y });
 }
 
-fn gen_sub(x: u32, y: u32, ret: u32, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
+fn gen_sub(x: u32, y: u32, ret: u32, st: &mut State, inst: &mut Vec<Instruction>)
 {
-	let x = placemap_get(map, x);
-	let y = placemap_get(map, y);
-	let ret = placemap_get(map, ret);
+	let x = assign_place(st, x);
+	let y = assign_place(st, y);
+	let ret = assign_place(st, ret);
 
 	inst.push(Instruction::Move { to: ret, from: x });
 	inst.push(Instruction::Sub { dst: ret, src: y });
 }
 
-fn gen_const(value: i32, place: u32, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
+fn gen_const(value: i32, place: u32, st: &mut State, inst: &mut Vec<Instruction>)
 {
-	let dst = placemap_get(map, place);
+	let dst = assign_place(st, place);
 
 	inst.push(Instruction::MoveImm { dst, value });
 }
 
-fn gen_return(place: u32, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
+fn gen_return(place: u32, st: &mut State, inst: &mut Vec<Instruction>)
 {
-	let place = placemap_get(map, place);
+	let place = assign_place(st, place);
 
 	inst.push(Instruction::Move { to: EAX, from: place });
 	inst.push(Instruction::Return);
 }
 
-fn gen_fn_call(name: &str, args: &[u32], ret: u32, map: &mut PlaceMap, inst: &mut Vec<Instruction>)
+fn gen_fn_call(name: &str, args: &[u32], ret: u32, st: &mut State, inst: &mut Vec<Instruction>)
 {
 	let assignments = assign_args(args.len());
 	let mut place_assignment;
-	let ret = placemap_get(map, ret);
+	let ret = assign_place(st, ret);
 	let name = name.to_string();
 
 	for (&place, assignment) in args.iter().zip(assignments) {
-		place_assignment = placemap_get(map, place);
+		place_assignment = assign_place(st, place);
 
 		inst.push(Instruction::Move { to: assignment, from: place_assignment });
 	}
