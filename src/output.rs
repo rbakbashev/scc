@@ -9,6 +9,30 @@ use crate::elf::construct_elf;
 use crate::ir::{ArithOp, format_arith};
 use crate::utils::{CheckError, error};
 
+struct Addresses
+{
+	map: HashMap<String, usize>,
+	relocations: Vec<Relocation>,
+}
+
+struct Relocation
+{
+	label: u16,
+	idx: usize,
+	offset: usize,
+	instr_len: i32,
+}
+
+fn addresses_get_label(addresses: &Addresses, label: u16) -> Option<usize>
+{
+	addresses.map.get(&format!("L{label}")).copied()
+}
+
+fn addresses_push_reloc(addr: &mut Addresses, label: u16, out: &[u8], offset: usize, instr_len: i32)
+{
+	addr.relocations.push(Relocation { label, idx: out.len(), offset, instr_len });
+}
+
 pub fn construct_file(code: &[Instruction]) -> Vec<u8>
 {
 	if ARGS.assembly {
@@ -123,7 +147,7 @@ fn construct_executable(code: &[Instruction]) -> Vec<u8>
 fn construct_code(code: &[Instruction]) -> (Vec<u8>, usize)
 {
 	let mut out = Vec::new();
-	let mut addresses = HashMap::new();
+	let mut addresses = Addresses { map: HashMap::new(), relocations: Vec::new() };
 	let entrypoint;
 
 	for instr in code {
@@ -134,16 +158,18 @@ fn construct_code(code: &[Instruction]) -> (Vec<u8>, usize)
 
 	write_code_epilogue(&addresses, &mut out);
 
+	write_relocations(&mut out, &addresses);
+
 	(out, entrypoint)
 }
 
-fn write_code_instr(instr: &Instruction, addresses: &mut HashMap<String, usize>, out: &mut Vec<u8>)
+fn write_code_instr(instr: &Instruction, addresses: &mut Addresses, out: &mut Vec<u8>)
 {
 	let address;
 
 	match instr {
 		Instruction::FuncPrologue { name, stack_used } => {
-			addresses.insert(name.clone(), out.len());
+			addresses.map.insert(name.clone(), out.len());
 			write_fn_prologue(*stack_used, out);
 		}
 		Instruction::Move { to, from } => write_move(*to, *from, out),
@@ -151,28 +177,19 @@ fn write_code_instr(instr: &Instruction, addresses: &mut HashMap<String, usize>,
 		Instruction::Arith { op, dst, src } => write_arith(*op, *dst, *src, out),
 		Instruction::Return => write_return(out),
 		Instruction::FuncCall { name } => {
-			address = addresses.get(name).try_to(format!("find function {name:?}"));
+			address = addresses.map.get(name).try_to(format!("find function {name:?}"));
 			write_fn_call(*address, out);
 		}
 		Instruction::JumpCond { cond, label } => {
-			address = find_label(addresses, *label);
-			write_jump_cond(*cond, *address, out);
+			write_jump_cond(*cond, *label, addresses, out);
 		}
-		Instruction::Jump { label } => {
-			address = find_label(addresses, *label);
-			write_jump(*address, out);
-		}
+		Instruction::Jump { label } => write_jump(*label, addresses, out),
 		Instruction::Label { name } => {
-			addresses.insert(format!("L{name}"), out.len());
+			addresses.map.insert(format!("L{name}"), out.len());
 		}
 		Instruction::Compare { x, y } => write_compare(*x, *y, out),
 		Instruction::CompareImm { x, value } => write_compare_imm(*x, *value, out),
 	}
-}
-
-fn find_label(addresses: &HashMap<String, usize>, label: u16) -> &usize
-{
-	addresses.get(&format!("L{label}")).try_to(format!("find label L{label}"))
 }
 
 fn write_fn_prologue(stack_used: i32, out: &mut Vec<u8>)
@@ -211,11 +228,14 @@ fn write_move(to: Assignment, from: Assignment, out: &mut Vec<u8>)
 			out.push(0x89);
 			modrm(offset, src, out);
 		}
-		(src, Assignment::Stack(offset)) => {
+		(dst, Assignment::Stack(offset)) => {
 			out.push(0x8b);
-			modrm(offset, src, out);
+			modrm(offset, dst, out);
 		}
-		_ => error(format!("unexpected move case: {to:?} and {from:?}")),
+		(dst, src) => {
+			out.push(0x89);
+			modrm_regs(dst, src, out);
+		}
 	}
 }
 
@@ -229,6 +249,11 @@ fn modrm(offset: i32, src: Assignment, out: &mut Vec<u8>)
 		push_modrm(0b10, reg_field(src), 0b101, out); // [rbp+disp32]
 		out.extend(offset.to_le_bytes());
 	}
+}
+
+fn modrm_regs(x: Assignment, y: Assignment, out: &mut Vec<u8>)
+{
+	push_modrm(0b11, reg_field(y), reg_field(x), out);
 }
 
 fn modrm_single(offset: i32, digit: u8, out: &mut Vec<u8>)
@@ -249,9 +274,10 @@ fn reg_field(register: Assignment) -> u8
 		Assignment::EAX => 0b000,
 		Assignment::ECX => 0b001,
 		Assignment::EDX => 0b010,
+		Assignment::EBX => 0b011,
 		Assignment::ESI => 0b110,
 		Assignment::EDI => 0b111,
-		otherwise => error(format!("reg: unexpected stack assignment {otherwise:?}")),
+		Assignment::Stack(_) => error("unexpected stack assignment"),
 	}
 }
 
@@ -280,6 +306,7 @@ fn write_arith(op: ArithOp, dst: Assignment, src: Assignment, out: &mut Vec<u8>)
 		(Assignment::Stack(_), Assignment::Stack(_)) =>
 			error("arithmetic operations from memory to memory are invalid"),
 		(Assignment::Stack(offset), src) => write_arith_stack_reg(op, offset, src, out),
+		(dst, Assignment::Stack(offset)) => write_arith_reg_stack(op, dst, offset, out),
 		_ => {
 			fmt = format_arith(op);
 			error(format!("unexpected arithmetic case: {dst:?} {fmt}= {src:?}"));
@@ -292,6 +319,16 @@ fn write_arith_stack_reg(op: ArithOp, offset: i32, src: Assignment, out: &mut Ve
 	match op {
 		ArithOp::Add => out.push(0x01),
 		ArithOp::Sub => out.push(0x29),
+	}
+
+	modrm(offset, src, out);
+}
+
+fn write_arith_reg_stack(op: ArithOp, src: Assignment, offset: i32, out: &mut Vec<u8>)
+{
+	match op {
+		ArithOp::Add => out.push(0x03),
+		ArithOp::Sub => out.push(0x2b),
 	}
 
 	modrm(offset, src, out);
@@ -319,9 +356,17 @@ fn rip_offset(address: usize, out: &[u8], instr_len: i32) -> i32
 	address - idx - instr_len
 }
 
-fn write_jump_cond(cond: Cond, address: usize, out: &mut Vec<u8>)
+fn write_jump_cond(cond: Cond, label: u16, addresses: &mut Addresses, out: &mut Vec<u8>)
 {
-	let offset = rip_offset(address, out, 6);
+	let offset;
+
+	offset = if let Some(address) = addresses_get_label(addresses, label) {
+		rip_offset(address, out, 6)
+	}
+	else {
+		addresses_push_reloc(addresses, label, out, 2, 6);
+		0
+	};
 
 	out.push(0x0f);
 
@@ -337,11 +382,20 @@ fn write_jump_cond(cond: Cond, address: usize, out: &mut Vec<u8>)
 	out.extend(offset.to_le_bytes());
 }
 
-fn write_jump(address: usize, out: &mut Vec<u8>)
+fn write_jump(label: u16, addresses: &mut Addresses, out: &mut Vec<u8>)
 {
-	let offset = rip_offset(address, out, 5);
+	let offset;
+
+	offset = if let Some(address) = addresses_get_label(addresses, label) {
+		rip_offset(address, out, 5)
+	}
+	else {
+		addresses_push_reloc(addresses, label, out, 1, 5);
+		0
+	};
 
 	out.push(0xe9); // jmp
+
 	out.extend(offset.to_le_bytes());
 }
 
@@ -370,9 +424,9 @@ fn write_compare_imm(x: Assignment, value: i32, out: &mut Vec<u8>)
 	error(format!("unexpected case of comparison with immediate: {x:?}"));
 }
 
-fn write_code_epilogue(addresses: &HashMap<String, usize>, out: &mut Vec<u8>)
+fn write_code_epilogue(addresses: &Addresses, out: &mut Vec<u8>)
 {
-	let main = addresses.get("main").try_to("find main function");
+	let main = addresses.map.get("main").try_to("find main function");
 
 	write_fn_call(*main, out);
 
@@ -383,4 +437,28 @@ fn write_code_epilogue(addresses: &HashMap<String, usize>, out: &mut Vec<u8>)
 	out.extend(zero_extend(60, 4));
 
 	out.extend([0x0f, 0x05]); // syscall
+}
+
+fn write_relocations(out: &mut [u8], addr: &Addresses)
+{
+	let mut label_str;
+	let mut address;
+	let mut addr_i32;
+	let mut idx;
+	let mut offset;
+	let mut location;
+
+	for relocation in &addr.relocations {
+		label_str = format!("L{}", relocation.label);
+		address = addr.map.get(&label_str).try_to(format!("find label {label_str}"));
+
+		location = relocation.idx + relocation.offset;
+
+		idx = i32::try_from(relocation.idx).or_err("code location overflows u32");
+		addr_i32 = i32::try_from(*address).or_err("address overflows u32");
+
+		offset = addr_i32 - idx - relocation.instr_len;
+
+		out[location..location + 4].copy_from_slice(&offset.to_le_bytes());
+	}
 }
