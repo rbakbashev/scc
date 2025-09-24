@@ -154,8 +154,25 @@ fn write_code_instr(instr: &Instruction, addresses: &mut HashMap<String, usize>,
 			address = addresses.get(name).try_to(format!("find function {name:?}"));
 			write_fn_call(*address, out);
 		}
-		_ => todo!(),
+		Instruction::JumpCond { cond, label } => {
+			address = find_label(addresses, *label);
+			write_jump_cond(*cond, *address, out);
+		}
+		Instruction::Jump { label } => {
+			address = find_label(addresses, *label);
+			write_jump(*address, out);
+		}
+		Instruction::Label { name } => {
+			addresses.insert(format!("L{name}"), out.len());
+		}
+		Instruction::Compare { x, y } => write_compare(*x, *y, out),
+		Instruction::CompareImm { x, value } => write_compare_imm(*x, *value, out),
 	}
+}
+
+fn find_label(addresses: &HashMap<String, usize>, label: u16) -> &usize
+{
+	addresses.get(&format!("L{label}")).try_to(format!("find label L{label}"))
 }
 
 fn write_fn_prologue(stack_used: i32, out: &mut Vec<u8>)
@@ -288,12 +305,69 @@ fn write_return(out: &mut Vec<u8>)
 
 fn write_fn_call(address: usize, out: &mut Vec<u8>)
 {
-	let idx = i32::try_from(out.len()).or_err("code len overflows u32");
-	let address = i32::try_from(address).or_err("function's address overflows u32");
-	let offset = address - idx - 5;
+	let offset = rip_offset(address, out, 5);
 
-	out.push(0xe8);
+	out.push(0xe8); // call
 	out.extend(offset.to_le_bytes());
+}
+
+fn rip_offset(address: usize, out: &[u8], instr_len: i32) -> i32
+{
+	let idx = i32::try_from(out.len()).or_err("code len overflows u32");
+	let address = i32::try_from(address).or_err("address overflows u32");
+
+	address - idx - instr_len
+}
+
+fn write_jump_cond(cond: Cond, address: usize, out: &mut Vec<u8>)
+{
+	let offset = rip_offset(address, out, 6);
+
+	out.push(0x0f);
+
+	match cond {
+		Cond::LT => out.push(0x8c),
+		Cond::GT => out.push(0x8f),
+		Cond::LTE => out.push(0x8e),
+		Cond::GTE => out.push(0x8d),
+		Cond::NotEqual => out.push(0x85),
+		Cond::Equal => out.push(0x84),
+	}
+
+	out.extend(offset.to_le_bytes());
+}
+
+fn write_jump(address: usize, out: &mut Vec<u8>)
+{
+	let offset = rip_offset(address, out, 5);
+
+	out.push(0xe9); // jmp
+	out.extend(offset.to_le_bytes());
+}
+
+fn write_compare(x: Assignment, y: Assignment, out: &mut Vec<u8>)
+{
+	match (x, y) {
+		(Assignment::Stack(_), Assignment::Stack(_)) =>
+			error("comparisons between two memory locations are invalid"),
+		(src, Assignment::Stack(offset)) => {
+			out.push(0x3b);
+			modrm(offset, src, out);
+		}
+		_ => error(format!("unexpected comparison case: {x:?} {y:?}")),
+	}
+}
+
+fn write_compare_imm(x: Assignment, value: i32, out: &mut Vec<u8>)
+{
+	if let Assignment::Stack(offset) = x {
+		out.push(0x81);
+		modrm_single(offset, 7, out);
+		out.extend(value.to_le_bytes());
+		return;
+	}
+
+	error(format!("unexpected case of comparison with immediate: {x:?}"));
 }
 
 fn write_code_epilogue(addresses: &HashMap<String, usize>, out: &mut Vec<u8>)
