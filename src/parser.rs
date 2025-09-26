@@ -338,9 +338,19 @@ fn translation_unit(read: &mut TokenReader) -> AST
 fn external_declaration(read: &mut TokenReader) -> Option<AST>
 {
 	let mut node = ast_node(read, ExternalDeclaration);
-	let mut copy = *read;
+	let mut copy;
+
+	copy = *read;
 
 	if let Some(next) = function_definition(&mut copy) {
+		node.next.push(next);
+		*read = copy;
+		return Some(node);
+	}
+
+	copy = *read;
+
+	if let Some(next) = declaration(&mut copy) {
 		node.next.push(next);
 		*read = copy;
 		return Some(node);

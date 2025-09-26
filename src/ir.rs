@@ -238,12 +238,20 @@ fn scope_assign(scope: &mut Scope, name: String, place: u32)
 
 fn walk(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 {
+	let mut next;
+
 	expect(ast, Type::TranslationUnit);
 
 	for node in &ast.next {
 		expect(node, Type::ExternalDeclaration);
 
-		walk_function_def(&node.next[0], ir, scope);
+		next = &node.next[0];
+
+		match next.ty {
+			Type::FunctionDefinition => walk_function_def(next, ir, scope),
+			Type::Declaration => walk_declaration(next, ir, scope),
+			otherwise => error(format!("unexpected top-level item: {otherwise:?}")),
+		}
 	}
 }
 
@@ -303,23 +311,42 @@ fn walk_compound_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 fn walk_declaration(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 {
 	let list = &ast.next[1];
-	let mut name;
-	let mut place;
 
 	expect(list, Type::InitDeclaratorList);
 
 	for init_decl in &list.next {
-		expect(init_decl, Type::InitDeclarator);
+		walk_init_declarator(init_decl, ir, scope);
+	}
+}
 
-		name = init_decl.next[0].next[0].data.clone().or_err("declaration has no name");
+fn walk_init_declarator(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
+{
+	let decl = &ast.next[0];
+	let mut is_func = false;
+	let name;
+	let place;
 
-		if init_decl.next.len() == 2 {
-			place = walk_assignment_expression(&init_decl.next[1].next[0], ir, scope);
-			scope_assign(scope, name, place);
+	expect(ast, Type::InitDeclarator);
+
+	name = match decl.next[0].ty {
+		Type::FunctionDeclarator => {
+			is_func = true;
+			decl.next[0].next[0].data.clone().or_err("function declaration has no name")
 		}
-		else {
-			scope_insert(scope, name);
+		Type::Identifier => decl.next[0].data.clone().or_err("declaration has no name"),
+		otherwise => error(format!("unexpected declarator type {otherwise:?}")),
+	};
+
+	if ast.next.len() == 2 {
+		if is_func {
+			error("attempted to initialize a function with a value");
 		}
+
+		place = walk_assignment_expression(&ast.next[1].next[0], ir, scope);
+		scope_assign(scope, name, place);
+	}
+	else {
+		scope_insert(scope, name);
 	}
 }
 
