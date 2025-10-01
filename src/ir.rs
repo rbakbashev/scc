@@ -284,9 +284,27 @@ fn walk_function_def(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
 
 	walk_compound_statement(&ast.next[2], &mut body, scope);
 
+	add_implicit_return(&name, &mut body, scope);
+
 	scope_pop(scope);
 
 	ir.push(Node::FuncDef { name, params, body });
+}
+
+fn add_implicit_return(name: &str, body: &mut Vec<Node>, scope: &mut Scope)
+{
+	let place;
+
+	if name != "main" {
+		return;
+	}
+
+	if body.last().is_none_or(|last| !matches!(last, Node::Return { .. })) {
+		place = scope_allocate(scope);
+
+		body.push(Node::Constant { value: 0, place });
+		body.push(Node::Return { place });
+	}
 }
 
 fn walk_compound_statement(ast: &AST, ir: &mut Vec<Node>, scope: &mut Scope)
