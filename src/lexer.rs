@@ -47,6 +47,10 @@ pub fn tokenize(filename: &str, input: &str) -> Vec<Token>
 			continue;
 		}
 
+		if eat_comment(ch, &mut read) {
+			continue;
+		}
+
 		if let Some(token) = eat_identifier(ch, &mut read) {
 			out.push(token);
 			continue;
@@ -162,6 +166,50 @@ fn is_compound_punctuator(s: &str) -> bool
 	matches!(s, "!=" | "%=" | "&&" | "&=" | "*=" | "++" | "+=" | "--" | "-=" | "->" | "..."
 		| "/=" | "::" | "<<" | "<<=" | "<=" | "==" | ">=" | ">>" | ">>=" | "^=" | "|="
 		| "||")
+}
+
+fn eat_comment(curr: char, read: &mut FileReader) -> bool
+{
+	if curr != '/' {
+		return false;
+	}
+
+	reader_consume(read);
+
+	match reader_curr(read) {
+		Some('/') => {
+			eat_line_comment(read);
+			true
+		}
+		Some('*') => {
+			eat_block_comment(read);
+			true
+		}
+		_ => false,
+	}
+}
+
+fn eat_line_comment(read: &mut FileReader)
+{
+	while let Some(curr) = reader_curr(read) {
+		reader_consume(read);
+
+		if curr == '\n' {
+			return;
+		}
+	}
+}
+
+fn eat_block_comment(read: &mut FileReader)
+{
+	while let Some(curr) = reader_curr(read) {
+		reader_consume(read);
+
+		if curr == '*' && reader_curr(read).is_some_and(|ch| ch == '/') {
+			reader_consume(read);
+			return;
+		}
+	}
 }
 
 fn eat_identifier(curr: char, read: &mut FileReader) -> Option<Token>
