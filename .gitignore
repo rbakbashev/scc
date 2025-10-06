@@ -3,6 +3,10 @@ Cargo.lock
 
 *.s
 *.o
+*.a
+*.html
+
+a.out
 
 add
 fib
