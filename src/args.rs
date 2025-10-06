@@ -11,6 +11,7 @@ pub struct ParsedArgs
 	pub output_file: String,
 	pub verbose: bool,
 	pub assembly: bool,
+	pub compile_only: bool,
 }
 
 pub struct WriteOnce<T>
@@ -43,6 +44,7 @@ pub fn parse()
 		},
 		Opt::Flag { short: 'V', long: "verbose", desc: "enable verbose output" },
 		Opt::Flag { short: 'S', long: "assembly", desc: "output assembly" },
+		Opt::Flag { short: 'c', long: "compile-only", desc: "do not link" },
 	];
 
 	let results = collect_args(&options);
@@ -68,12 +70,12 @@ fn into_parsed_args(args: &Args) -> ParsedArgs
 	};
 
 	let assembly = arg_present(args, 'S');
+	let verbose = arg_present(args, 'V');
+	let compile_only = arg_present(args, 'c');
 
 	let output_file = get_output_filename(args, &input_files, assembly);
 
-	let verbose = arg_present(args, 'V');
-
-	ParsedArgs { input_files, output_file, verbose, assembly }
+	ParsedArgs { input_files, output_file, verbose, assembly, compile_only }
 }
 
 fn get_output_filename(args: &Args, input_files: &[String], assembly: bool) -> String

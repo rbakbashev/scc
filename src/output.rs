@@ -52,7 +52,9 @@ fn construct_assembly(code: &[Instruction]) -> Vec<u8>
 		write_asm_instr(instr, &mut out);
 	}
 
-	write_asm_epilogue(&mut out);
+	if !ARGS.compile_only {
+		write_asm_epilogue(&mut out);
+	}
 
 	out.into_bytes()
 }
@@ -67,6 +69,7 @@ fn write_asm_instr(instr: &Instruction, out: &mut String)
 	match instr {
 		Instruction::FuncPrologue { name, stack_used } => {
 			writeln!(out);
+			writeln!(out, "global {name}");
 			writeln!(out, "{name}:");
 			writeln!(out, "\tpush rbp");
 			writeln!(out, "\tmov rbp, rsp");
