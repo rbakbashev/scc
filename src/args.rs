@@ -73,23 +73,37 @@ fn into_parsed_args(args: &Args) -> ParsedArgs
 	let verbose = arg_present(args, 'V');
 	let compile_only = arg_present(args, 'c');
 
-	let output_file = get_output_filename(args, &input_files, assembly);
+	let extension = get_output_extension(assembly, compile_only);
+	let output_file = get_output_filename(args, &input_files, extension);
 
 	ParsedArgs { input_files, output_file, verbose, assembly, compile_only }
 }
 
-fn get_output_filename(args: &Args, input_files: &[String], assembly: bool) -> String
+fn get_output_extension(assembly: bool, compile_only: bool) -> &'static str
+{
+	if assembly {
+		return "s";
+	}
+
+	if compile_only {
+		return "o";
+	}
+
+	""
+}
+
+fn get_output_filename(args: &Args, input_files: &[String], extension: &str) -> String
 {
 	let outputs = arg_values(args, 'o');
 
 	match outputs.as_slice() {
-		[] => construct_output_filename(input_files, assembly),
+		[] => construct_output_filename(input_files, extension),
 		[one] => one.clone(),
 		many => error(format!("multiple output filenames provided: {}", format_list(many))),
 	}
 }
 
-fn construct_output_filename(input_files: &[String], assembly: bool) -> String
+fn construct_output_filename(input_files: &[String], extension: &str) -> String
 {
 	let input_file = match input_files {
 		[one] => one,
@@ -99,12 +113,7 @@ fn construct_output_filename(input_files: &[String], assembly: bool) -> String
 	let basename = Path::new(input_file).file_name().or_err("input filename ends in '/..'");
 	let mut path = Path::new(basename).to_path_buf();
 
-	if assembly {
-		path.set_extension("s");
-	}
-	else {
-		path.set_extension("");
-	}
+	path.set_extension(extension);
 
 	path.to_string_lossy().to_string()
 }
