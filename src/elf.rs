@@ -1,3 +1,5 @@
+use crate::output::Code;
+
 #[repr(C, packed)]
 struct Elf64Ehdr
 {
@@ -64,13 +66,13 @@ const PHDR_SIZE: u16 = 56;
 const FILE_OFFSET: u64 = (EHDR_SIZE + PHDR_SIZE) as u64;
 const VADDR: u64 = 0x100_000 + FILE_OFFSET;
 
-pub fn construct_elf(mut text: Vec<u8>, entrypoint: usize) -> Vec<u8>
+pub fn construct_elf(mut code: Code) -> Vec<u8>
 {
 	let mut out = Vec::new();
 
-	write_file_header(entrypoint, &mut out);
-	write_program_header(text.len(), &mut out);
-	out.append(&mut text);
+	write_file_header(code.entrypoint, &mut out);
+	write_program_header(code.text.len(), &mut out);
+	out.append(&mut code.text);
 
 	out
 }

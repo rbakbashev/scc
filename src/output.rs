@@ -23,6 +23,12 @@ struct Relocation
 	instr_len: i32,
 }
 
+pub struct Code
+{
+	pub text: Vec<u8>,
+	pub entrypoint: usize,
+}
+
 fn addresses_get_label(addresses: &Addresses, label: u16) -> Option<usize>
 {
 	addresses.map.get(&format!("L{label}")).copied()
@@ -39,7 +45,7 @@ pub fn construct_file(code: &[Instruction]) -> Vec<u8>
 		return construct_assembly(code);
 	}
 
-	construct_executable(code)
+	construct_binary(code)
 }
 
 fn construct_assembly(code: &[Instruction]) -> Vec<u8>
@@ -140,14 +146,14 @@ fn write_asm_epilogue(out: &mut String)
 	writeln!(out, "\tsyscall");
 }
 
-fn construct_executable(code: &[Instruction]) -> Vec<u8>
+fn construct_binary(code: &[Instruction]) -> Vec<u8>
 {
-	let (text, entrypoint) = construct_code(code);
+	let output = construct_code(code);
 
-	construct_elf(text, entrypoint)
+	construct_elf(output)
 }
 
-fn construct_code(code: &[Instruction]) -> (Vec<u8>, usize)
+fn construct_code(code: &[Instruction]) -> Code
 {
 	let mut out = Vec::new();
 	let mut addresses = Addresses { map: HashMap::new(), relocations: Vec::new() };
@@ -163,7 +169,7 @@ fn construct_code(code: &[Instruction]) -> (Vec<u8>, usize)
 
 	write_relocations(&mut out, &addresses);
 
-	(out, entrypoint)
+	Code { text: out, entrypoint }
 }
 
 fn write_code_instr(instr: &Instruction, addresses: &mut Addresses, out: &mut Vec<u8>)
