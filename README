@@ -1,0 +1,6 @@
+scc is a small C compiler.
+
+ * very limited
+ * highly unoptimized
+ * has a funny C89-ish codestyle
+ * has no dependencies, and doesn't rely on external assemblers and linkers
