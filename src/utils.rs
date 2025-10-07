@@ -155,6 +155,7 @@ pub fn write_to_file(path: &str, contents: &[u8], executable: bool)
 	let mut file = File::options()
 		.create(true)
 		.write(true)
+		.truncate(true)
 		.mode(mode)
 		.open(path)
 		.try_to(format!("create file {path:?}"));
