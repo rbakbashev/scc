@@ -158,21 +158,8 @@ fn as_bytes<T>(x: &T) -> &[u8]
 
 fn write_file_header_objfile(num_shdrs: u16, out: &mut Vec<u8>)
 {
-	let mut e_ident = [0; 16];
-	let file_header;
-
-	e_ident[EI_MAG0] = b'\x7f';
-	e_ident[EI_MAG1] = b'E';
-	e_ident[EI_MAG2] = b'L';
-	e_ident[EI_MAG3] = b'F';
-
-	e_ident[EI_CLASS] = ELFCLASS64;
-	e_ident[EI_DATA] = ELFDATA2LSB;
-	e_ident[EI_VERSION] = EV_CURRENT;
-	e_ident[EI_OSABI] = ELFOSABI_SYSV;
-
-	file_header = Elf64Ehdr {
-		e_ident,
+	let file_header = Elf64Ehdr {
+		e_ident: elf_ident(),
 		e_type: ET_REL,
 		e_machine: EM_X86_64,
 		e_version: EV_CURRENT.into(),
@@ -193,21 +180,8 @@ fn write_file_header_objfile(num_shdrs: u16, out: &mut Vec<u8>)
 
 fn write_file_header_exec(entrypoint: usize, out: &mut Vec<u8>)
 {
-	let mut e_ident = [0; 16];
-	let file_header;
-
-	e_ident[EI_MAG0] = b'\x7f';
-	e_ident[EI_MAG1] = b'E';
-	e_ident[EI_MAG2] = b'L';
-	e_ident[EI_MAG3] = b'F';
-
-	e_ident[EI_CLASS] = ELFCLASS64;
-	e_ident[EI_DATA] = ELFDATA2LSB;
-	e_ident[EI_VERSION] = EV_CURRENT;
-	e_ident[EI_OSABI] = ELFOSABI_SYSV;
-
-	file_header = Elf64Ehdr {
-		e_ident,
+	let file_header = Elf64Ehdr {
+		e_ident: elf_ident(),
 		e_type: ET_EXEC,
 		e_machine: EM_X86_64,
 		e_version: EV_CURRENT.into(),
@@ -224,6 +198,23 @@ fn write_file_header_exec(entrypoint: usize, out: &mut Vec<u8>)
 	};
 
 	out.extend(as_bytes(&file_header));
+}
+
+fn elf_ident() -> [u8; 16]
+{
+	let mut ident = [0; 16];
+
+	ident[EI_MAG0] = b'\x7f';
+	ident[EI_MAG1] = b'E';
+	ident[EI_MAG2] = b'L';
+	ident[EI_MAG3] = b'F';
+
+	ident[EI_CLASS] = ELFCLASS64;
+	ident[EI_DATA] = ELFDATA2LSB;
+	ident[EI_VERSION] = EV_CURRENT;
+	ident[EI_OSABI] = ELFOSABI_SYSV;
+
+	ident
 }
 
 fn write_shdrs_and_sections(mut code: Code, num_shdrs: u16, out: &mut Vec<u8>)
