@@ -14,6 +14,7 @@ struct Output
 	addresses: HashMap<String, usize>,
 	relocations: Vec<Relocation>,
 	bytes: Vec<u8>,
+	globals: Vec<(String, usize)>,
 }
 
 struct Relocation
@@ -28,11 +29,17 @@ pub struct Code
 {
 	pub text: Vec<u8>,
 	pub entrypoint: usize,
+	pub globals: Vec<(String, usize)>,
 }
 
 fn empty_output() -> Output
 {
-	Output { addresses: HashMap::new(), relocations: Vec::new(), bytes: Vec::new() }
+	Output {
+		addresses: HashMap::new(),
+		relocations: Vec::new(),
+		bytes: Vec::new(),
+		globals: Vec::new(),
+	}
 }
 
 fn push(out: &mut Output, data: impl IntoIterator<Item = u8>)
@@ -43,11 +50,6 @@ fn push(out: &mut Output, data: impl IntoIterator<Item = u8>)
 fn push_byte(out: &mut Output, byte: u8)
 {
 	out.bytes.push(byte);
-}
-
-fn add_address(out: &mut Output, name: String, addr: usize)
-{
-	out.addresses.insert(name, addr);
 }
 
 fn get_address(out: &Output, name: &str) -> Option<usize>
@@ -192,11 +194,13 @@ fn construct_code(code: &[Instruction]) -> Code
 
 	entrypoint = out.bytes.len();
 
-	write_code_epilogue(&mut out);
+	if !ARGS.compile_only {
+		write_code_epilogue(&mut out);
+	}
 
 	write_relocations(&mut out);
 
-	Code { text: out.bytes, entrypoint }
+	Code { text: out.bytes, entrypoint, globals: out.globals }
 }
 
 fn write_code_instr(instr: &Instruction, out: &mut Output)
@@ -205,7 +209,8 @@ fn write_code_instr(instr: &Instruction, out: &mut Output)
 
 	match instr {
 		Instruction::FuncPrologue { name, stack_used } => {
-			add_address(out, name.clone(), out.bytes.len());
+			out.addresses.insert(name.clone(), out.bytes.len());
+			out.globals.push((name.clone(), out.bytes.len()));
 			write_fn_prologue(*stack_used, out);
 		}
 		Instruction::Move { to, from } => write_move(*to, *from, out),
@@ -221,7 +226,7 @@ fn write_code_instr(instr: &Instruction, out: &mut Output)
 		}
 		Instruction::Jump { label } => write_jump(*label, out),
 		Instruction::Label { name } => {
-			add_address(out, format!("L{name}"), out.bytes.len());
+			out.addresses.insert(format!("L{name}"), out.bytes.len());
 		}
 		Instruction::Compare { x, y } => write_compare(*x, *y, out),
 		Instruction::CompareImm { x, value } => write_compare_imm(*x, *value, out),
