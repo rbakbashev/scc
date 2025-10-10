@@ -77,7 +77,7 @@ pub fn construct_assembly(instrs: &[Instruction]) -> Vec<u8>
 		write_asm_instr(instr, &mut out);
 	}
 
-	if !ARGS.compile_only {
+	if ARGS.add_start_stub {
 		write_asm_epilogue(&mut out);
 	}
 
@@ -173,8 +173,8 @@ pub fn construct_code(instrs: &[Instruction]) -> Code
 		write_code_instr(instr, &mut out);
 	}
 
-	if !ARGS.compile_only {
-		write_code_epilogue(&mut out);
+	if ARGS.add_start_stub && ARGS.compile_only {
+		write_start_stub(&mut out);
 	}
 
 	write_relocations(&mut out);
@@ -444,7 +444,16 @@ fn write_compare_imm(x: Assignment, value: i32, out: &mut Output)
 	error(format!("unexpected case of comparison with immediate: {x:?}"));
 }
 
-fn write_code_epilogue(out: &mut Output)
+pub fn construct_start_stub() -> Code
+{
+	let mut out = empty_output();
+
+	write_start_stub(&mut out);
+
+	Code { text: out.bytes, globals: out.globals }
+}
+
+fn write_start_stub(out: &mut Output)
 {
 	let main = get_address(out, "main").try_to("find main function");
 

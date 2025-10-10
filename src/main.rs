@@ -8,6 +8,7 @@
 	clippy::needless_late_init,
 	clippy::needless_range_loop,
 	clippy::option_if_let_else,
+	clippy::struct_excessive_bools,
 	clippy::struct_field_names,
 	clippy::unnecessary_wraps,
 	clippy::upper_case_acronyms
@@ -104,6 +105,10 @@ fn generate_executable_file()
 		code = output::construct_code(&instrs);
 
 		inputs.push(code);
+	}
+
+	if ARGS.add_start_stub {
+		inputs.push(output::construct_start_stub());
 	}
 
 	exec = elf::construct_executable(inputs);

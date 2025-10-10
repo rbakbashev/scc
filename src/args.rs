@@ -12,6 +12,7 @@ pub struct ParsedArgs
 	pub verbose: bool,
 	pub assembly: bool,
 	pub compile_only: bool,
+	pub add_start_stub: bool,
 }
 
 pub struct WriteOnce<T>
@@ -45,6 +46,7 @@ pub fn parse()
 		Opt::Flag { short: 'V', long: "verbose", desc: "enable verbose output" },
 		Opt::Flag { short: 'S', long: "assembly", desc: "output assembly" },
 		Opt::Flag { short: 'c', long: "compile-only", desc: "do not link" },
+		Opt::Flag { short: 's', long: "start", desc: "add _start stub that calls main" },
 	];
 
 	let results = collect_args(&options);
@@ -73,12 +75,17 @@ fn into_parsed_args(args: &Args) -> ParsedArgs
 	let verbose = arg_present(args, 'V');
 	let assembly = arg_present(args, 'S');
 	let compile_only = arg_present(args, 'c');
+	let add_start_stub = arg_present(args, 's');
 
 	if input_files.len() > 1 && output_file.is_some() && (assembly || compile_only) {
 		warn("ignoring provided output filename: multiple input files with -c or -S used");
 	}
 
-	ParsedArgs { input_files, output_file, verbose, assembly, compile_only }
+	if assembly && compile_only {
+		warn("both -c and -S provided: doing only compilation regardless");
+	}
+
+	ParsedArgs { input_files, output_file, verbose, assembly, compile_only, add_start_stub }
 }
 
 fn output_filename(args: &Args) -> Option<String>
