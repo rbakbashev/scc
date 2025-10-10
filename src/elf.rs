@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::args::ARGS;
 use crate::output::Code;
 use crate::utils::CheckError;
 
@@ -120,16 +119,7 @@ const STT_NOTYPE: u8 = 0;
 
 const SHNDX_TEXT: u16 = 4;
 
-pub fn construct_elf(code: Code) -> Vec<u8>
-{
-	if ARGS.compile_only {
-		return construct_object_file(code);
-	}
-
-	construct_executable(code)
-}
-
-fn construct_object_file(code: Code) -> Vec<u8>
+pub fn construct_object_file(code: Code) -> Vec<u8>
 {
 	let num_shdrs = 5;
 	let mut out = Vec::new();
@@ -140,9 +130,14 @@ fn construct_object_file(code: Code) -> Vec<u8>
 	out
 }
 
-fn construct_executable(mut code: Code) -> Vec<u8>
+pub fn construct_executable(mut inputs: Vec<Code>) -> Vec<u8>
 {
 	let mut out = Vec::new();
+
+	let [code] = inputs.as_mut_slice()
+	else {
+		todo!()
+	};
 
 	write_file_header_exec(code.entrypoint, &mut out);
 	write_program_header(code.text.len(), &mut out);

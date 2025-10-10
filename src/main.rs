@@ -81,7 +81,7 @@ fn generate_object_files()
 		path = args::output_fname_for_indiv_files(&ARGS, filename);
 		instrs = compile(filename);
 		code = output::construct_code(&instrs);
-		obj = elf::construct_elf(code);
+		obj = elf::construct_object_file(code);
 
 		utils::write_to_file(&path, &obj, false);
 	}
@@ -90,8 +90,25 @@ fn generate_object_files()
 fn generate_executable_file()
 {
 	let path = args::output_fname_for_single_output(&ARGS);
+	let mut instrs;
+	let mut code;
+	let mut inputs = Vec::new();
+	let exec;
 
-	todo!();
+	for filename in &ARGS.input_files {
+		if !is_source_file(filename) {
+			todo!();
+		}
+
+		instrs = compile(filename);
+		code = output::construct_code(&instrs);
+
+		inputs.push(code);
+	}
+
+	exec = elf::construct_executable(inputs);
+
+	utils::write_to_file(&path, &exec, true);
 }
 
 fn compile(filename: &str) -> Vec<Instruction>
