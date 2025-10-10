@@ -74,7 +74,7 @@ fn into_parsed_args(args: &Args) -> ParsedArgs
 	let assembly = arg_present(args, 'S');
 	let compile_only = arg_present(args, 'c');
 
-	if input_files.len() > 1 && output_file.is_some() {
+	if input_files.len() > 1 && output_file.is_some() && (assembly || compile_only) {
 		warn("ignoring provided output filename: multiple input files with -c or -S used");
 	}
 
@@ -103,6 +103,19 @@ pub fn output_fname_for_indiv_files(parsed: &ParsedArgs, input_file: &str) -> St
 	}
 
 	construct_output_filename(input_file, extension)
+}
+
+pub fn output_fname_for_single_output(parsed: &ParsedArgs) -> String
+{
+	if parsed.input_files.len() == 1 {
+		return construct_output_filename(&parsed.input_files[0], "");
+	}
+
+	if let Some(provided_output_file) = &parsed.output_file {
+		return provided_output_file.clone();
+	}
+
+	error("no output filename provided for multiple input files");
 }
 
 fn get_output_extension(assembly: bool, compile_only: bool) -> &'static str
