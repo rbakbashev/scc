@@ -111,7 +111,7 @@ fn generate_executable_file()
 		inputs.push(output::construct_start_stub());
 	}
 
-	exec = elf::construct_executable(inputs);
+	exec = elf::construct_executable(&inputs);
 
 	utils::write_to_file(&path, &exec, true);
 }

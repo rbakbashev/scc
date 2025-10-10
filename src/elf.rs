@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::output::Code;
-use crate::utils::CheckError;
+use crate::output::{Code, write_reference};
+use crate::utils::{CheckError, error};
 
 #[repr(C, packed)]
 struct Elf64Ehdr
@@ -130,27 +130,32 @@ pub fn construct_object_file(code: Code) -> Vec<u8>
 	out
 }
 
-pub fn construct_executable(mut inputs: Vec<Code>) -> Vec<u8>
+pub fn construct_executable(inputs: &[Code]) -> Vec<u8>
 {
 	let mut out = Vec::new();
-
-	let [code] = inputs.as_mut_slice()
-	else {
-		todo!()
-	};
-
-	let entrypoint = find_symbol(code, "_start");
+	let entrypoint = find_symbol(inputs, "_start");
+	let mut combined_text = combine_text(inputs);
 
 	write_file_header_exec(entrypoint, &mut out);
-	write_program_header(code.text.len(), &mut out);
-	out.append(&mut code.text);
+	write_program_header(combined_text.len(), &mut out);
+	out.append(&mut combined_text);
 
 	out
 }
 
-fn find_symbol(code: &Code, symbol: &str) -> usize
+fn find_symbol(inputs: &[Code], symbol: &str) -> usize
 {
-	*code.globals.get(symbol).try_to("find _start symbol")
+	let mut offset = 0;
+
+	for input in inputs {
+		if let Some(&address) = input.globals.get(symbol) {
+			return offset + address;
+		}
+
+		offset += input.text.len();
+	}
+
+	error(format!("failed to symbol {symbol:?}"));
 }
 
 fn as_bytes<T>(x: &T) -> &[u8]
@@ -412,4 +417,27 @@ fn construct_symtab(globals: &HashMap<String, usize>, strtab: &StringTable) -> V
 fn info(binding: u8, ty: u8) -> u8
 {
 	(binding << 4) | ty
+}
+
+fn combine_text(inputs: &[Code]) -> Vec<u8>
+{
+	let mut texts = Vec::new();
+	let mut offset = 0;
+	let mut address;
+
+	for input in inputs {
+		texts.extend(input.text.clone());
+	}
+
+	for input in inputs {
+		for reference in &input.references {
+			address = find_symbol(inputs, &reference.name);
+
+			write_reference(&mut texts, reference, offset, address);
+		}
+
+		offset += input.text.len();
+	}
+
+	texts
 }

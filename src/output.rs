@@ -14,6 +14,7 @@ struct Output
 	relocations: Vec<Relocation>,
 	bytes: Vec<u8>,
 	globals: HashMap<String, usize>,
+	references: Vec<Reference>,
 }
 
 struct Relocation
@@ -24,10 +25,19 @@ struct Relocation
 	instr_off: usize,
 }
 
+pub struct Reference
+{
+	pub name: String,
+	pub sect_off: usize,
+	pub instr_len: i32,
+	pub instr_off: usize,
+}
+
 pub struct Code
 {
 	pub text: Vec<u8>,
 	pub globals: HashMap<String, usize>,
+	pub references: Vec<Reference>,
 }
 
 fn empty_output() -> Output
@@ -37,6 +47,7 @@ fn empty_output() -> Output
 		relocations: Vec::new(),
 		bytes: Vec::new(),
 		globals: HashMap::new(),
+		references: Vec::new(),
 	}
 }
 
@@ -65,6 +76,19 @@ fn add_relocation(out: &mut Output, label: u16, instr_len: i32, instr_off: usize
 	let sect_off = out.bytes.len();
 
 	out.relocations.push(Relocation { label, sect_off, instr_len, instr_off });
+}
+
+fn add_reference(out: &mut Output, name: &str, instr_len: i32, instr_off: usize)
+{
+	let name = name.to_string();
+	let sect_off = out.bytes.len();
+
+	out.references.push(Reference { name, sect_off, instr_len, instr_off });
+}
+
+fn into_code(out: Output) -> Code
+{
+	Code { text: out.bytes, globals: out.globals, references: out.references }
 }
 
 pub fn construct_assembly(instrs: &[Instruction]) -> Vec<u8>
@@ -179,13 +203,11 @@ pub fn construct_code(instrs: &[Instruction]) -> Code
 
 	write_relocations(&mut out);
 
-	Code { text: out.bytes, globals: out.globals }
+	into_code(out)
 }
 
 fn write_code_instr(instr: &Instruction, out: &mut Output)
 {
-	let address;
-
 	match instr {
 		Instruction::FuncPrologue { name, stack_used } => {
 			out.addresses.insert(name.clone(), out.bytes.len());
@@ -196,13 +218,8 @@ fn write_code_instr(instr: &Instruction, out: &mut Output)
 		Instruction::MoveImm { dst, value } => write_move_imm(*dst, *value, out),
 		Instruction::Arith { op, dst, src } => write_arith(*op, *dst, *src, out),
 		Instruction::Return => write_return(out),
-		Instruction::FuncCall { name } => {
-			address = get_address(out, name).try_to(format!("find function {name:?}"));
-			write_fn_call(address, out);
-		}
-		Instruction::JumpCond { cond, label } => {
-			write_jump_cond(*cond, *label, out);
-		}
+		Instruction::FuncCall { name } => write_fn_call(name, out),
+		Instruction::JumpCond { cond, label } => write_jump_cond(*cond, *label, out),
 		Instruction::Jump { label } => write_jump(*label, out),
 		Instruction::Label { name } => {
 			out.addresses.insert(format!("L{name}"), out.bytes.len());
@@ -360,9 +377,15 @@ fn write_return(out: &mut Output)
 	push_byte(out, 0xc3); // ret
 }
 
-fn write_fn_call(address: usize, out: &mut Output)
+fn write_fn_call(name: &str, out: &mut Output)
 {
-	let offset = rip_offset(address, &out.bytes, 5);
+	let offset = if let Some(address) = get_address(out, name) {
+		rip_offset(address, &out.bytes, 5)
+	}
+	else {
+		add_reference(out, name, 5, 1);
+		0
+	};
 
 	push_byte(out, 0xe8); // call
 	push(out, offset.to_le_bytes());
@@ -450,16 +473,14 @@ pub fn construct_start_stub() -> Code
 
 	write_start_stub(&mut out);
 
-	Code { text: out.bytes, globals: out.globals }
+	into_code(out)
 }
 
 fn write_start_stub(out: &mut Output)
 {
-	let main = get_address(out, "main").try_to("find main function");
-
 	out.globals.insert("_start".to_string(), out.bytes.len());
 
-	write_fn_call(main, out);
+	write_fn_call("main", out);
 
 	push(out, [0x48, 0x89, 0xc7]); // mov rdi, rax
 
@@ -492,4 +513,15 @@ fn write_relocations(out: &mut Output)
 
 		out.bytes[write_loc..write_loc + 4].copy_from_slice(&rip_offset.to_le_bytes());
 	}
+}
+
+pub fn write_reference(bytes: &mut [u8], reference: &Reference, offset: usize, address: usize)
+{
+	let sect_off = reference.sect_off + offset;
+	let write_loc = sect_off + reference.instr_off;
+	let sect_i32 = i32::try_from(sect_off).or_err("code location overflows i32");
+	let addr_i32 = i32::try_from(address).or_err("address overflows i32");
+	let rip_offset = addr_i32 - sect_i32 - reference.instr_len;
+
+	bytes[write_loc..write_loc + 4].copy_from_slice(&rip_offset.to_le_bytes());
 }
