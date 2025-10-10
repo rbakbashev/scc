@@ -35,8 +35,8 @@ fn main()
 	let tokens = lexer::tokenize(filename, &file);
 	let ast = parser::parse(filename, &file, &tokens);
 	let ir = ir::lower(&ast);
-	let code = codegen::gen_instructions(&ir);
-	let output = output::construct_file(&code);
+	let instrs = codegen::gen_instructions(&ir);
+	let output = output::construct_file(&instrs);
 
 	utils::write_to_file(&ARGS.output_file, &output, !ARGS.assembly);
 }

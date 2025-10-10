@@ -69,22 +69,22 @@ fn add_relocation(out: &mut Output, label: u16, offset: usize, instr_len: i32)
 	out.relocations.push(Relocation { label, idx, offset, instr_len });
 }
 
-pub fn construct_file(code: &[Instruction]) -> Vec<u8>
+pub fn construct_file(instrs: &[Instruction]) -> Vec<u8>
 {
 	if ARGS.assembly {
-		return construct_assembly(code);
+		return construct_assembly(instrs);
 	}
 
-	construct_binary(code)
+	construct_binary(instrs)
 }
 
-fn construct_assembly(code: &[Instruction]) -> Vec<u8>
+fn construct_assembly(instrs: &[Instruction]) -> Vec<u8>
 {
 	let mut out = String::new();
 
 	write_asm_prologue(&mut out);
 
-	for instr in code {
+	for instr in instrs {
 		write_asm_instr(instr, &mut out);
 	}
 
@@ -176,19 +176,19 @@ fn write_asm_epilogue(out: &mut String)
 	writeln!(out, "\tsyscall");
 }
 
-fn construct_binary(code: &[Instruction]) -> Vec<u8>
+fn construct_binary(instrs: &[Instruction]) -> Vec<u8>
 {
-	let output = construct_code(code);
+	let output = construct_code(instrs);
 
 	construct_elf(output)
 }
 
-fn construct_code(code: &[Instruction]) -> Code
+fn construct_code(instrs: &[Instruction]) -> Code
 {
 	let mut out = empty_output();
 	let entrypoint;
 
-	for instr in code {
+	for instr in instrs {
 		write_code_instr(instr, &mut out);
 	}
 
