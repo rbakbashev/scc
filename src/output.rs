@@ -13,7 +13,7 @@ struct Output
 	addresses: HashMap<String, usize>,
 	relocations: Vec<Relocation>,
 	bytes: Vec<u8>,
-	globals: Vec<(String, usize)>,
+	globals: HashMap<String, usize>,
 }
 
 struct Relocation
@@ -28,7 +28,7 @@ pub struct Code
 {
 	pub text: Vec<u8>,
 	pub entrypoint: usize,
-	pub globals: Vec<(String, usize)>,
+	pub globals: HashMap<String, usize>,
 }
 
 fn empty_output() -> Output
@@ -37,7 +37,7 @@ fn empty_output() -> Output
 		addresses: HashMap::new(),
 		relocations: Vec::new(),
 		bytes: Vec::new(),
-		globals: Vec::new(),
+		globals: HashMap::new(),
 	}
 }
 
@@ -193,7 +193,7 @@ fn write_code_instr(instr: &Instruction, out: &mut Output)
 	match instr {
 		Instruction::FuncPrologue { name, stack_used } => {
 			out.addresses.insert(name.clone(), out.bytes.len());
-			out.globals.push((name.clone(), out.bytes.len()));
+			out.globals.insert(name.clone(), out.bytes.len());
 			write_fn_prologue(*stack_used, out);
 		}
 		Instruction::Move { to, from } => write_move(*to, *from, out),

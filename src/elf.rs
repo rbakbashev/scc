@@ -358,9 +358,13 @@ fn strtab_add(tab: &mut StringTable, item: &str)
 	tab.offsets.insert(item.to_string(), offset);
 }
 
-fn strtab_add_symbols(tab: &mut StringTable, globals: &[(String, usize)])
+fn strtab_add_symbols(tab: &mut StringTable, globals: &HashMap<String, usize>)
 {
-	for (symbol, _addr) in globals {
+	let mut symbols = globals.keys().collect::<Vec<_>>();
+
+	symbols.sort_unstable();
+
+	for symbol in symbols {
 		strtab_add(tab, symbol);
 	}
 }
@@ -372,14 +376,17 @@ fn strtab_get(tab: &StringTable, item: &str) -> u32
 	u32::try_from(idx).or_err("index overflows u32")
 }
 
-fn construct_symtab(globals: &[(String, usize)], strtab: &StringTable) -> Vec<Elf64Sym>
+fn construct_symtab(globals: &HashMap<String, usize>, strtab: &StringTable) -> Vec<Elf64Sym>
 {
+	let mut symbol_values = globals.iter().collect::<Vec<_>>();
 	let mut sym;
 	let mut out = Vec::new();
 
+	symbol_values.sort();
+
 	out.push(Elf64Sym::default());
 
-	for (symbol, addr) in globals {
+	for (symbol, addr) in symbol_values {
 		sym = Elf64Sym {
 			st_name: strtab_get(strtab, symbol),
 			st_info: info(STB_GLOBAL, STT_NOTYPE),
