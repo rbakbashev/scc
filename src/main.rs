@@ -23,7 +23,7 @@ mod output;
 mod parser;
 mod utils;
 
-use args::ARGS;
+use args::{ARGS, output_fname_for_indiv_files};
 use codegen::Instruction;
 use utils::{is_source_file, warn};
 
@@ -57,7 +57,7 @@ fn generate_assembly_files()
 			continue;
 		}
 
-		path = args::construct_output_filename(filename, "s");
+		path = output_fname_for_indiv_files(&ARGS, filename);
 		instrs = compile(filename);
 		asm = output::construct_assembly(&instrs);
 
@@ -78,7 +78,7 @@ fn generate_object_files()
 			continue;
 		}
 
-		path = args::construct_output_filename(filename, "o");
+		path = output_fname_for_indiv_files(&ARGS, filename);
 		instrs = compile(filename);
 		code = output::construct_code(&instrs);
 		obj = elf::construct_elf(code);

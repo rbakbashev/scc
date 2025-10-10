@@ -8,7 +8,7 @@ use crate::utils::{CheckError, error, format_list, warn};
 pub struct ParsedArgs
 {
 	pub input_files: Vec<String>,
-	pub output_file: String,
+	pub output_file: Option<String>,
 	pub verbose: bool,
 	pub assembly: bool,
 	pub compile_only: bool,
@@ -69,14 +69,40 @@ fn into_parsed_args(args: &Args) -> ParsedArgs
 		args.free.clone()
 	};
 
-	let assembly = arg_present(args, 'S');
+	let output_file = output_filename(args);
 	let verbose = arg_present(args, 'V');
+	let assembly = arg_present(args, 'S');
 	let compile_only = arg_present(args, 'c');
 
-	let extension = get_output_extension(assembly, compile_only);
-	let output_file = get_output_filename(args, &input_files, extension);
+	if input_files.len() > 1 && output_file.is_some() {
+		warn("ignoring provided output filename: multiple input files with -c or -S used");
+	}
 
 	ParsedArgs { input_files, output_file, verbose, assembly, compile_only }
+}
+
+fn output_filename(args: &Args) -> Option<String>
+{
+	let outputs = arg_values(args, 'o');
+
+	match outputs.as_slice() {
+		[] => None,
+		[one] => Some(one.clone()),
+		many => error(format!("multiple output filenames provided: {}", format_list(many))),
+	}
+}
+
+pub fn output_fname_for_indiv_files(parsed: &ParsedArgs, input_file: &str) -> String
+{
+	let extension = get_output_extension(parsed.assembly, parsed.compile_only);
+
+	if parsed.input_files.len() == 1
+		&& let Some(provided_output_file) = &parsed.output_file
+	{
+		return provided_output_file.clone();
+	}
+
+	construct_output_filename(input_file, extension)
 }
 
 fn get_output_extension(assembly: bool, compile_only: bool) -> &'static str
@@ -92,28 +118,7 @@ fn get_output_extension(assembly: bool, compile_only: bool) -> &'static str
 	""
 }
 
-fn get_output_filename(args: &Args, input_files: &[String], extension: &str) -> String
-{
-	let outputs = arg_values(args, 'o');
-
-	match outputs.as_slice() {
-		[] => input_files_to_output_filename(input_files, extension),
-		[one] => one.clone(),
-		many => error(format!("multiple output filenames provided: {}", format_list(many))),
-	}
-}
-
-fn input_files_to_output_filename(input_files: &[String], extension: &str) -> String
-{
-	let input_file = match input_files {
-		[one] => one,
-		_many => error("no output filename provided"),
-	};
-
-	construct_output_filename(input_file, extension)
-}
-
-pub fn construct_output_filename(input_file: &str, extension: &str) -> String
+fn construct_output_filename(input_file: &str, extension: &str) -> String
 {
 	let basename = Path::new(input_file).file_name().or_err("input filename ends in '/..'");
 	let mut path = Path::new(basename).to_path_buf();
