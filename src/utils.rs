@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::panic::PanicHookInfo;
+use std::path::Path;
 
 pub trait CheckError<T>: Sized
 {
@@ -141,6 +142,11 @@ pub fn format_list(items: &[impl Display]) -> String
 	}
 
 	out
+}
+
+pub fn is_source_file(path: &str) -> bool
+{
+	Path::new(path).extension().is_some_and(|ext| ext.eq_ignore_ascii_case("c"))
 }
 
 pub fn read_file(path: &str) -> String

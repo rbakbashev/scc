@@ -97,19 +97,24 @@ fn get_output_filename(args: &Args, input_files: &[String], extension: &str) -> 
 	let outputs = arg_values(args, 'o');
 
 	match outputs.as_slice() {
-		[] => construct_output_filename(input_files, extension),
+		[] => input_files_to_output_filename(input_files, extension),
 		[one] => one.clone(),
 		many => error(format!("multiple output filenames provided: {}", format_list(many))),
 	}
 }
 
-fn construct_output_filename(input_files: &[String], extension: &str) -> String
+fn input_files_to_output_filename(input_files: &[String], extension: &str) -> String
 {
 	let input_file = match input_files {
 		[one] => one,
 		_many => error("no output filename provided"),
 	};
 
+	construct_output_filename(input_file, extension)
+}
+
+pub fn construct_output_filename(input_file: &str, extension: &str) -> String
+{
 	let basename = Path::new(input_file).file_name().or_err("input filename ends in '/..'");
 	let mut path = Path::new(basename).to_path_buf();
 

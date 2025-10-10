@@ -5,7 +5,6 @@ use std::fmt::Write;
 
 use crate::args::ARGS;
 use crate::codegen::{Assignment, Cond, Instruction};
-use crate::elf::construct_elf;
 use crate::ir::{ArithOp, format_arith};
 use crate::utils::{CheckError, error};
 
@@ -69,16 +68,7 @@ fn add_relocation(out: &mut Output, label: u16, offset: usize, instr_len: i32)
 	out.relocations.push(Relocation { label, idx, offset, instr_len });
 }
 
-pub fn construct_file(instrs: &[Instruction]) -> Vec<u8>
-{
-	if ARGS.assembly {
-		return construct_assembly(instrs);
-	}
-
-	construct_binary(instrs)
-}
-
-fn construct_assembly(instrs: &[Instruction]) -> Vec<u8>
+pub fn construct_assembly(instrs: &[Instruction]) -> Vec<u8>
 {
 	let mut out = String::new();
 
@@ -176,14 +166,7 @@ fn write_asm_epilogue(out: &mut String)
 	writeln!(out, "\tsyscall");
 }
 
-fn construct_binary(instrs: &[Instruction]) -> Vec<u8>
-{
-	let output = construct_code(instrs);
-
-	construct_elf(output)
-}
-
-fn construct_code(instrs: &[Instruction]) -> Code
+pub fn construct_code(instrs: &[Instruction]) -> Code
 {
 	let mut out = empty_output();
 	let entrypoint;

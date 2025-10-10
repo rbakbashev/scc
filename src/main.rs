@@ -24,19 +24,80 @@ mod parser;
 mod utils;
 
 use args::ARGS;
+use codegen::Instruction;
+use utils::{is_source_file, warn};
 
 fn main()
 {
 	utils::set_internal_panic_hook();
 	args::parse();
 
-	let filename = &ARGS.input_files[0];
+	if ARGS.assembly {
+		generate_assembly_files();
+		return;
+	}
+
+	if ARGS.compile_only {
+		generate_object_files();
+		return;
+	}
+
+	generate_executable_file();
+}
+
+fn generate_assembly_files()
+{
+	let mut path;
+	let mut instrs;
+	let mut asm;
+
+	for filename in &ARGS.input_files {
+		if !is_source_file(filename) {
+			warn(format!("input file {filename:?} ignored for generating assembly"));
+			continue;
+		}
+
+		path = args::construct_output_filename(filename, "s");
+		instrs = compile(filename);
+		asm = output::construct_assembly(&instrs);
+
+		utils::write_to_file(&path, &asm, false);
+	}
+}
+
+fn generate_object_files()
+{
+	let mut path;
+	let mut instrs;
+	let mut code;
+	let mut obj;
+
+	for filename in &ARGS.input_files {
+		if !is_source_file(filename) {
+			warn(format!("input file {filename:?} ignored: not producing executable"));
+			continue;
+		}
+
+		path = args::construct_output_filename(filename, "o");
+		instrs = compile(filename);
+		code = output::construct_code(&instrs);
+		obj = elf::construct_elf(code);
+
+		utils::write_to_file(&path, &obj, false);
+	}
+}
+
+fn generate_executable_file()
+{
+	todo!();
+}
+
+fn compile(filename: &str) -> Vec<Instruction>
+{
 	let file = utils::read_file(filename);
 	let tokens = lexer::tokenize(filename, &file);
 	let ast = parser::parse(filename, &file, &tokens);
 	let ir = ir::lower(&ast);
-	let instrs = codegen::gen_instructions(&ir);
-	let output = output::construct_file(&instrs);
 
-	utils::write_to_file(&ARGS.output_file, &output, !ARGS.assembly);
+	codegen::gen_instructions(&ir)
 }
