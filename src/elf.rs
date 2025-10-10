@@ -139,11 +139,18 @@ pub fn construct_executable(mut inputs: Vec<Code>) -> Vec<u8>
 		todo!()
 	};
 
-	write_file_header_exec(code.entrypoint, &mut out);
+	let entrypoint = find_symbol(code, "_start");
+
+	write_file_header_exec(entrypoint, &mut out);
 	write_program_header(code.text.len(), &mut out);
 	out.append(&mut code.text);
 
 	out
+}
+
+fn find_symbol(code: &Code, symbol: &str) -> usize
+{
+	*code.globals.get(symbol).try_to("find _start symbol")
 }
 
 fn as_bytes<T>(x: &T) -> &[u8]

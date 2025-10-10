@@ -27,7 +27,6 @@ struct Relocation
 pub struct Code
 {
 	pub text: Vec<u8>,
-	pub entrypoint: usize,
 	pub globals: HashMap<String, usize>,
 }
 
@@ -169,13 +168,10 @@ fn write_asm_epilogue(out: &mut String)
 pub fn construct_code(instrs: &[Instruction]) -> Code
 {
 	let mut out = empty_output();
-	let entrypoint;
 
 	for instr in instrs {
 		write_code_instr(instr, &mut out);
 	}
-
-	entrypoint = out.bytes.len();
 
 	if !ARGS.compile_only {
 		write_code_epilogue(&mut out);
@@ -183,7 +179,7 @@ pub fn construct_code(instrs: &[Instruction]) -> Code
 
 	write_relocations(&mut out);
 
-	Code { text: out.bytes, entrypoint, globals: out.globals }
+	Code { text: out.bytes, globals: out.globals }
 }
 
 fn write_code_instr(instr: &Instruction, out: &mut Output)
@@ -451,6 +447,8 @@ fn write_compare_imm(x: Assignment, value: i32, out: &mut Output)
 fn write_code_epilogue(out: &mut Output)
 {
 	let main = get_address(out, "main").try_to("find main function");
+
+	out.globals.insert("_start".to_string(), out.bytes.len());
 
 	write_fn_call(main, out);
 
