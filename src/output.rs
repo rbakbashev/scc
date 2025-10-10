@@ -20,8 +20,8 @@ struct Relocation
 {
 	label: u16,
 	idx: usize,
-	offset: usize,
 	instr_len: i32,
+	instr_off: usize,
 }
 
 pub struct Code
@@ -60,11 +60,11 @@ fn get_label_address(out: &Output, label: u16) -> Option<usize>
 	get_address(out, &format!("L{label}"))
 }
 
-fn add_relocation(out: &mut Output, label: u16, offset: usize, instr_len: i32)
+fn add_relocation(out: &mut Output, label: u16, instr_len: i32, instr_off: usize)
 {
 	let idx = out.bytes.len();
 
-	out.relocations.push(Relocation { label, idx, offset, instr_len });
+	out.relocations.push(Relocation { label, idx, instr_len, instr_off });
 }
 
 pub fn construct_assembly(instrs: &[Instruction]) -> Vec<u8>
@@ -384,7 +384,7 @@ fn write_jump_cond(cond: Cond, label: u16, out: &mut Output)
 		rip_offset(address, &out.bytes, 6)
 	}
 	else {
-		add_relocation(out, label, 2, 6);
+		add_relocation(out, label, 6, 2);
 		0
 	};
 
@@ -410,7 +410,7 @@ fn write_jump(label: u16, out: &mut Output)
 		rip_offset(address, &out.bytes, 5)
 	}
 	else {
-		add_relocation(out, label, 1, 5);
+		add_relocation(out, label, 5, 1);
 		0
 	};
 
@@ -472,24 +472,24 @@ fn write_start_stub(out: &mut Output)
 
 fn write_relocations(out: &mut Output)
 {
-	let mut label_str;
+	let mut label;
 	let mut address;
-	let mut addr_i32;
+	let mut write_loc;
 	let mut idx;
-	let mut offset;
-	let mut location;
+	let mut addr_i32;
+	let mut rip_offset;
 
 	for relocation in &out.relocations {
-		label_str = format!("L{}", relocation.label);
-		address = get_address(out, &label_str).try_to(format!("find label {label_str}"));
+		label = relocation.label;
+		address = get_label_address(out, label).try_to(format!("find label {label}"));
 
-		location = relocation.idx + relocation.offset;
+		write_loc = relocation.idx + relocation.instr_off;
 
 		idx = i32::try_from(relocation.idx).or_err("code location overflows u32");
 		addr_i32 = i32::try_from(address).or_err("address overflows u32");
 
-		offset = addr_i32 - idx - relocation.instr_len;
+		rip_offset = addr_i32 - idx - relocation.instr_len;
 
-		out.bytes[location..location + 4].copy_from_slice(&offset.to_le_bytes());
+		out.bytes[write_loc..write_loc + 4].copy_from_slice(&rip_offset.to_le_bytes());
 	}
 }
