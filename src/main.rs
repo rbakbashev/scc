@@ -25,7 +25,8 @@ mod parser;
 mod utils;
 
 use args::ARGS;
-use codegen::Instruction;
+use ir::Node;
+use output::Code;
 use utils::{is_source_file, warn};
 
 fn main()
@@ -49,6 +50,7 @@ fn main()
 fn generate_assembly_files()
 {
 	let mut path;
+	let mut ir;
 	let mut instrs;
 	let mut asm;
 
@@ -59,7 +61,8 @@ fn generate_assembly_files()
 		}
 
 		path = args::output_fname_for_indiv_files(&ARGS, filename);
-		instrs = compile(filename);
+		ir = compile_to_ir(filename);
+		instrs = codegen::gen_instructions(&ir);
 		asm = output::construct_assembly(&instrs);
 
 		utils::write_to_file(&path, &asm, false);
@@ -69,7 +72,6 @@ fn generate_assembly_files()
 fn generate_object_files()
 {
 	let mut path;
-	let mut instrs;
 	let mut code;
 	let mut obj;
 
@@ -80,8 +82,7 @@ fn generate_object_files()
 		}
 
 		path = args::output_fname_for_indiv_files(&ARGS, filename);
-		instrs = compile(filename);
-		code = output::construct_code(&instrs);
+		code = compile_to_code(filename);
 		obj = elf::construct_object_file(code);
 
 		utils::write_to_file(&path, &obj, false);
@@ -91,7 +92,6 @@ fn generate_object_files()
 fn generate_executable_file()
 {
 	let path = args::output_fname_for_single_output(&ARGS);
-	let mut instrs;
 	let mut code;
 	let mut inputs = Vec::new();
 	let exec;
@@ -101,8 +101,7 @@ fn generate_executable_file()
 			todo!();
 		}
 
-		instrs = compile(filename);
-		code = output::construct_code(&instrs);
+		code = compile_to_code(filename);
 
 		inputs.push(code);
 	}
@@ -116,12 +115,19 @@ fn generate_executable_file()
 	utils::write_to_file(&path, &exec, true);
 }
 
-fn compile(filename: &str) -> Vec<Instruction>
+fn compile_to_ir(filename: &str) -> Vec<Node>
 {
 	let file = utils::read_file(filename);
 	let tokens = lexer::tokenize(filename, &file);
 	let ast = parser::parse(filename, &file, &tokens);
-	let ir = ir::lower(&ast);
 
-	codegen::gen_instructions(&ir)
+	ir::lower(&ast)
+}
+
+fn compile_to_code(filename: &str) -> Code
+{
+	let ir = compile_to_ir(filename);
+	let instrs = codegen::gen_instructions(&ir);
+
+	output::construct_code(&instrs)
 }
