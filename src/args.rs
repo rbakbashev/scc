@@ -13,6 +13,7 @@ pub struct ParsedArgs
 	pub assembly: bool,
 	pub compile_only: bool,
 	pub add_start_stub: bool,
+	pub wasm: bool,
 }
 
 pub struct WriteOnce<T>
@@ -47,6 +48,11 @@ pub fn parse()
 		Opt::Flag { short: 'S', long: "assembly", desc: "output assembly" },
 		Opt::Flag { short: 'c', long: "compile-only", desc: "do not link" },
 		Opt::Flag { short: 's', long: "start", desc: "add _start stub that calls main" },
+		Opt::Flag {
+			short: 'w',
+			long: "wasm",
+			desc: "output WebAssembly (can be used with -S)",
+		},
 	];
 
 	let results = collect_args(&options);
@@ -76,6 +82,7 @@ fn into_parsed_args(args: &Args) -> ParsedArgs
 	let assembly = arg_present(args, 'S');
 	let compile_only = arg_present(args, 'c');
 	let add_start_stub = arg_present(args, 's');
+	let wasm = arg_present(args, 'w');
 
 	if input_files.len() > 1 && output_file.is_some() && (assembly || compile_only) {
 		warn("ignoring provided output filename: multiple input files with -c or -S used");
@@ -85,7 +92,15 @@ fn into_parsed_args(args: &Args) -> ParsedArgs
 		warn("both -c and -S provided: doing only compilation regardless");
 	}
 
-	ParsedArgs { input_files, output_file, verbose, assembly, compile_only, add_start_stub }
+	ParsedArgs {
+		input_files,
+		output_file,
+		verbose,
+		assembly,
+		compile_only,
+		add_start_stub,
+		wasm,
+	}
 }
 
 fn output_filename(args: &Args) -> Option<String>
@@ -101,7 +116,7 @@ fn output_filename(args: &Args) -> Option<String>
 
 pub fn output_fname_for_indiv_files(parsed: &ParsedArgs, input_file: &str) -> String
 {
-	let extension = get_output_extension(parsed.assembly, parsed.compile_only);
+	let extension = get_output_extension(parsed);
 
 	if parsed.input_files.len() == 1
 		&& let Some(provided_output_file) = &parsed.output_file
@@ -125,17 +140,30 @@ pub fn output_fname_for_single_output(parsed: &ParsedArgs) -> String
 	error("no output filename provided for multiple input files");
 }
 
-fn get_output_extension(assembly: bool, compile_only: bool) -> &'static str
+fn get_output_extension(parsed: &ParsedArgs) -> &'static str
 {
-	if assembly {
-		return "s";
-	}
+	if parsed.wasm {
+		if parsed.assembly {
+			return "wat";
+		}
 
-	if compile_only {
-		return "o";
-	}
+		if parsed.compile_only {
+			return "o";
+		}
 
-	""
+		"wasm"
+	}
+	else {
+		if parsed.assembly {
+			return "s";
+		}
+
+		if parsed.compile_only {
+			return "o";
+		}
+
+		""
+	}
 }
 
 fn construct_output_filename(input_file: &str, extension: &str) -> String
