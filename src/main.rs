@@ -23,6 +23,7 @@ mod optparse;
 mod output;
 mod parser;
 mod utils;
+mod wasm;
 
 use args::ARGS;
 use ir::Node;
@@ -62,8 +63,14 @@ fn generate_assembly_files()
 
 		path = args::output_fname_for_indiv_files(&ARGS, filename);
 		ir = compile_to_ir(filename);
-		instrs = codegen::gen_instructions(&ir);
-		asm = output::construct_assembly(&instrs);
+
+		asm = if ARGS.wasm {
+			wasm::construct_text(&ir)
+		}
+		else {
+			instrs = codegen::gen_instructions(&ir);
+			output::construct_assembly(&instrs)
+		};
 
 		utils::write_to_file(&path, &asm, false);
 	}

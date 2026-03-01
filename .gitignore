@@ -8,6 +8,9 @@ Cargo.lock
 
 a.out
 
+*.wat
+*.wasm
+
 add
 fib
 libc
