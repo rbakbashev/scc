@@ -4,3 +4,4 @@ scc is a small C compiler.
  * highly unoptimized
  * has a funny C89-ish codestyle
  * has no dependencies, and doesn't rely on external assemblers and linkers
+ * can produce assembly listings, object files, executables, and WebAssembly text
